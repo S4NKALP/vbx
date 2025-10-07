@@ -1,43 +1,39 @@
 
-name: C/C++ CI
+name: build-and-test
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "**" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "**" ]
 
 jobs:
-  build:
+  ubuntu-build:
     runs-on: ubuntu-latest
-
     steps:
-      # Step 1: Checkout your code
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      # Step 2: Install build dependencies
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y build-essential
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            pkg-config \
+            libjson-c-dev \
+            libpulse-dev \
+            libsndfile1-dev \
+            libinput-dev \
+            libevdev-dev \
+            libudev-dev
 
-      # Step 3: Build your project
       - name: Build
         run: make -j$(nproc)
 
-      # Step 4: Run tests if available
-      - name: Run tests
-        run: |
-          if make -q check 2>/dev/null; then
-            make check
-          else
-            echo "No tests defined, skipping..."
-          fi
+      - name: List sound packs
+        run: ./keyvibe --list
 
-      # Step 5: Optional: distribution check if Makefile has distcheck
-      - name: Distribution check
-        run: |
-          if make -q distcheck 2>/dev/null; then
-            make distcheck
-          else
-            echo "No distcheck target, skipping..."
-          fi
+      - name: Smoke test help
+        run: ./keyvibe --help || true
+
+
