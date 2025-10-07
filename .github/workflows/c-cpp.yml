@@ -27,8 +27,13 @@ jobs:
             libevdev-dev \
             libudev-dev
 
-      - name: Build
-        run: make -j$(nproc)
+      - name: Build (with repo-local PREFIX)
+        run: make -j$(nproc) PREFIX=$PWD
+
+      - name: Prepare data dir for runtime
+        run: |
+          mkdir -p "$PWD/share/keyvibe"
+          cp -r audio "$PWD/share/keyvibe/"
 
       - name: List sound packs
         run: ./keyvibe --list
