@@ -1,4 +1,3 @@
-
 #define _POSIX_C_SOURCE 200809L
 
 #include "config.h"
@@ -81,14 +80,9 @@ int list_sound_packs() {
   printf("======================\n");
 
   while ((entry = readdir(dir)) != NULL) {
-    // Skip . and .. directories
     if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
       continue;
-
-    // Build full path
     snprintf(path, sizeof(path), "%s/%s", AUDIO_BASE_DIR, entry->d_name);
-
-    // Use stat to check if it's a directory
     if (stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
       printf("  %s\n", entry->d_name);
     }
@@ -106,68 +100,54 @@ int validate_sound_pack(const char *sound_name) {
            AUDIO_BASE_DIR, sound_name);
   snprintf(sound_path, sizeof(sound_path), "%s/%s", AUDIO_BASE_DIR, sound_name);
 
-  // Check if directory exists
   if (access(sound_path, F_OK) != 0) {
     fprintf(stderr, "Error: Sound pack '%s' not found in %s/\n", sound_name,
             AUDIO_BASE_DIR);
     fprintf(stderr, "Use --list to see available sound packs.\n");
     return 0;
   }
-
-  // Check if config.json exists
   if (access(config_path, R_OK) != 0) {
     fprintf(stderr, "Error: Config file not found: %s\n", config_path);
     return 0;
   }
-
   return 1;
 }
 
 void cleanup_processes(int sig) {
-  (void)sig; // Suppress unused parameter warning
-
+  (void)sig;
   if (!is_daemon) {
     printf("\nShutting down KeyVibe...\n");
   }
-
   if (sound_pid > 0) {
     kill(sound_pid, SIGTERM);
     waitpid(sound_pid, NULL, 0);
   }
-
   if (keyboard_pid > 0) {
     kill(keyboard_pid, SIGTERM);
     waitpid(keyboard_pid, NULL, 0);
   }
-
   if (pidfile_path[0] != '\0') {
     unlink(pidfile_path);
   }
-
   exit(0);
 }
 
-// Function to check if sudo credentials are cached
 int check_sudo_cached() {
   int status = system("sudo -n true 2>/dev/null");
   return WEXITSTATUS(status) == 0;
 }
 
-// Function to prompt for sudo password if needed
 int ensure_sudo_access() {
   if (check_sudo_cached()) {
-    return 1; // Already have sudo access
+    return 1;
   }
-
   printf("This program requires sudo access to monitor keyboard events.\n");
   printf("Please enter your password when prompted:\n");
-
   int status = system("sudo -v");
   if (WEXITSTATUS(status) != 0) {
     fprintf(stderr, "Error: Failed to obtain sudo access\n");
     return 0;
   }
-
   return 1;
 }
 
@@ -178,9 +158,8 @@ static char *get_user_config_path(char *buffer, size_t buflen) {
     if (pw && pw->pw_dir)
       home = pw->pw_dir;
   }
-  if (!home) {
+  if (!home)
     return NULL;
-  }
   snprintf(buffer, buflen, "%s/%s", home, USER_CONFIG_FILENAME);
   return buffer;
 }
@@ -199,12 +178,10 @@ static int build_paths_for_sound(const char *sound_name, char *out_config_path,
   size_t name_len = strlen(sound_name);
   const char *cfg_suffix = "/config.json";
   size_t cfg_suffix_len = strlen(cfg_suffix);
-  // Need: base + '/' + name + cfg_suffix + null
   if (base_len + 1 + name_len + cfg_suffix_len + 1 > out_config_sz) {
     fprintf(stderr, "Error: sound pack name too long for path buffer.\n");
     return 0;
   }
-  // Need: base + '/' + name + null
   if (base_len + 1 + name_len + 1 > out_sound_sz) {
     fprintf(stderr, "Error: sound pack name too long for directory buffer.\n");
     return 0;
@@ -256,20 +233,16 @@ static void daemonize_self() {
   if (pid < 0)
     exit(1);
   if (pid > 0)
-    exit(0); // Parent exits
-
+    exit(0);
   if (setsid() < 0)
     exit(1);
-
   pid = fork();
   if (pid < 0)
     exit(1);
   if (pid > 0)
     exit(0);
-
   umask(0);
   chdir("/");
-
   int fd = open("/dev/null", O_RDWR);
   if (fd >= 0) {
     dup2(fd, STDIN_FILENO);
@@ -301,8 +274,6 @@ static int start_children(const char *sound_dir, const char *config_path,
     perror("pipe");
     return 0;
   }
-
-  // Fork sound player first
   sound_pid = fork();
   if (sound_pid == -1) {
     perror("fork");
@@ -310,11 +281,9 @@ static int start_children(const char *sound_dir, const char *config_path,
     close(pipefd[1]);
     return 0;
   }
-
   char sound_player_path[MAX_PATH_LENGTH];
-  snprintf(sound_player_path, sizeof(sound_player_path),
-           "%s/keyboard_sound_player", KeyVibe_BIN_DIR);
-
+  snprintf(sound_player_path, sizeof(sound_player_path), "%s/keyvibe-audio",
+           KeyVibe_BIN_DIR);
   if (sound_pid == 0) {
     close(pipefd[1]);
     dup2(pipefd[0], STDIN_FILENO);
@@ -327,13 +296,11 @@ static int start_children(const char *sound_dir, const char *config_path,
     snprintf(volume_str, sizeof(volume_str), "%d", volume);
     char verbose_str[8];
     snprintf(verbose_str, sizeof(verbose_str), "%d", verbose);
-    execl(sound_player_path, "keyboard_sound_player", "config.json", volume_str,
+    execl(sound_player_path, "keyvibe-audio", "config.json", volume_str,
           verbose_str, (char *)NULL);
-    perror("execl keyboard_sound_player");
+    perror("execl keyvibe-audio");
     exit(1);
   }
-
-  // Keyboard listener
   keyboard_pid = fork();
   if (keyboard_pid == -1) {
     perror("fork");
@@ -342,20 +309,17 @@ static int start_children(const char *sound_dir, const char *config_path,
     close(pipefd[1]);
     return 0;
   }
-
   char get_key_presses_path[MAX_PATH_LENGTH];
   snprintf(get_key_presses_path, sizeof(get_key_presses_path),
-           "%s/get_key_presses", KeyVibe_BIN_DIR);
-
+           "%s/keyvibe-input", KeyVibe_BIN_DIR);
   if (keyboard_pid == 0) {
     close(pipefd[0]);
     dup2(pipefd[1], STDOUT_FILENO);
     close(pipefd[1]);
-    execl(get_key_presses_path, "get_key_presses", (char *)NULL);
-    perror("execl get_key_presses");
+    execl(get_key_presses_path, "keyvibe-input", (char *)NULL);
+    perror("execl keyvibe-input");
     exit(1);
   }
-
   close(pipefd[0]);
   close(pipefd[1]);
   return 1;
@@ -451,13 +415,11 @@ static int read_user_config(const char *path, char **out_sound,
 }
 
 int main(int argc, char *argv[]) {
-  char *sound_name = "eg-oreo"; // Default sound pack
+  char *sound_name = "eg-oreo";
   int verbose = 0;
   int list_sounds = 0;
   int flag_daemon = 0;
   int flag_stop = 0;
-
-  // Parse command line arguments
   static struct option long_options[] = {
       {"sound", required_argument, 0, 's'},
       {"volume", required_argument, 0, 'V'},
@@ -469,13 +431,10 @@ int main(int argc, char *argv[]) {
       {"help", no_argument, 0, 'h'},
       {"verbose", no_argument, 0, 'v'},
       {0, 0, 0, 0}};
-
   int volume = 50;
   int override_config = 0;
   char *cli_sound = NULL;
   int cli_volume = -1;
-
-  // Load user config if present (pre-parse so CLI can override)
   char user_cfg_path[MAX_PATH_LENGTH];
   if (get_user_config_path(user_cfg_path, sizeof(user_cfg_path))) {
     if (access(user_cfg_path, R_OK) == 0) {
@@ -489,7 +448,6 @@ int main(int argc, char *argv[]) {
       }
     }
   }
-
   int opt;
   while ((opt = getopt_long(argc, argv, "s:V:clhv", long_options, NULL)) !=
          -1) {
@@ -516,23 +474,21 @@ int main(int argc, char *argv[]) {
     case 1001:
       flag_stop = 1;
       break;
-    case 1002:
-      // --reload acts like sending SIGHUP to daemon
-      {
-        build_pidfile_path(pidfile_path, sizeof(pidfile_path));
-        pid_t running_pid = 0;
-        if (!read_pidfile(pidfile_path, &running_pid) ||
-            !process_is_running(running_pid)) {
-          fprintf(stderr, "KeyVibe: not running.\n");
-          return 1;
-        }
-        if (kill(running_pid, SIGHUP) != 0) {
-          perror("kill");
-          return 1;
-        }
-        printf("KeyVibe reload signal sent.\n");
-        return 0;
+    case 1002: {
+      build_pidfile_path(pidfile_path, sizeof(pidfile_path));
+      pid_t running_pid = 0;
+      if (!read_pidfile(pidfile_path, &running_pid) ||
+          !process_is_running(running_pid)) {
+        fprintf(stderr, "KeyVibe: not running.\n");
+        return 1;
       }
+      if (kill(running_pid, SIGHUP) != 0) {
+        perror("kill");
+        return 1;
+      }
+      printf("KeyVibe reload signal sent.\n");
+      return 0;
+    }
     case 'h':
       print_usage(argv[0]);
       return 0;
@@ -544,16 +500,10 @@ int main(int argc, char *argv[]) {
       return 1;
     }
   }
-
-  // Handle list command
   if (list_sounds) {
     return list_sound_packs();
   }
-
-  // PID file path
   build_pidfile_path(pidfile_path, sizeof(pidfile_path));
-
-  // Handle stop command early
   if (flag_stop) {
     pid_t running_pid = 0;
     if (!read_pidfile(pidfile_path, &running_pid)) {
@@ -571,7 +521,6 @@ int main(int argc, char *argv[]) {
       perror("kill");
       return 1;
     }
-    // Wait up to ~3s for it to exit
     for (int i = 0; i < 30; i++) {
       if (!process_is_running(running_pid)) {
         unlink(pidfile_path);
@@ -580,25 +529,20 @@ int main(int argc, char *argv[]) {
       }
       struct timespec ts;
       ts.tv_sec = 0;
-      ts.tv_nsec = 100000000L; // 100ms
+      ts.tv_nsec = 100000000L;
       nanosleep(&ts, NULL);
     }
     fprintf(stderr, "KeyVibe: process did not stop in time\n");
     return 1;
   }
-
-  // Apply CLI overrides only if -c/--override-config was provided
   if (override_config) {
     if (cli_sound != NULL)
       sound_name = cli_sound;
     if (cli_volume >= 0)
       volume = cli_volume;
   }
-
-  // If no config file existed, create one with defaults
   if (get_user_config_path(user_cfg_path, sizeof(user_cfg_path))) {
     if (access(user_cfg_path, F_OK) != 0) {
-      // Use current values (defaults or CLI overrides) for initial file
       if (!write_user_config(user_cfg_path, sound_name, volume)) {
         fprintf(stderr, "Warning: Failed to write %s\n", user_cfg_path);
       } else if (verbose) {
@@ -606,38 +550,25 @@ int main(int argc, char *argv[]) {
       }
     }
   }
-
-  // Validate sound pack
   if (!validate_sound_pack(sound_name)) {
     return 1;
   }
-
-  // No sudo pre-check; we'll run without sudo by default
-
-  // Check if required executables exist
   char get_key_presses_path[MAX_PATH_LENGTH];
   char sound_player_path[MAX_PATH_LENGTH];
-
   snprintf(get_key_presses_path, sizeof(get_key_presses_path),
-           "%s/get_key_presses", KeyVibe_BIN_DIR);
-  snprintf(sound_player_path, sizeof(sound_player_path),
-           "%s/keyboard_sound_player", KeyVibe_BIN_DIR);
-
+           "%s/keyvibe-input", KeyVibe_BIN_DIR);
+  snprintf(sound_player_path, sizeof(sound_player_path), "%s/keyvibe-audio",
+           KeyVibe_BIN_DIR);
   if (access(get_key_presses_path, X_OK) != 0) {
     fprintf(stderr, "Error: Cannot find or execute %s\n", get_key_presses_path);
     return 1;
   }
-
   if (access(sound_player_path, X_OK) != 0) {
     fprintf(stderr, "Error: Cannot find or execute %s\n", sound_player_path);
     return 1;
   }
-
-  // Setup signal handler for cleanup
   signal(SIGINT, cleanup_processes);
   signal(SIGTERM, cleanup_processes);
-
-  // If daemon mode requested, ensure not already running, then daemonize
   if (flag_daemon) {
     pid_t existing = 0;
     if (read_pidfile(pidfile_path, &existing) && process_is_running(existing)) {
@@ -648,24 +579,14 @@ int main(int argc, char *argv[]) {
     }
     daemonize_self();
     is_daemon = 1;
-    // Write our pidfile (this is the supervising process)
-    if (!write_pidfile(pidfile_path, getpid())) {
-      // If we cannot write pidfile, still continue but warn and run in
-      // foreground to avoid orphaning However we're already daemonized; best we
-      // can do is proceed.
-    }
+    write_pidfile(pidfile_path, getpid());
   }
-
-  // Build paths
   char config_path[MAX_PATH_LENGTH];
   char sound_dir[MAX_PATH_LENGTH];
-
   if (!build_paths_for_sound(sound_name, config_path, sizeof(config_path),
                              sound_dir, sizeof(sound_dir))) {
     return 1;
   }
-
-  // Store current settings for reloads
   current_volume = volume;
   current_verbose = verbose;
   strncpy(current_sound_name, sound_name, sizeof(current_sound_name) - 1);
@@ -674,7 +595,6 @@ int main(int argc, char *argv[]) {
   current_config_path[sizeof(current_config_path) - 1] = '\0';
   strncpy(current_sound_dir, sound_dir, sizeof(current_sound_dir) - 1);
   current_sound_dir[sizeof(current_sound_dir) - 1] = '\0';
-
   if (verbose && !is_daemon) {
     printf("KeyVibe starting...\n");
     printf("Sound pack: %s\n", sound_name);
@@ -687,41 +607,31 @@ int main(int argc, char *argv[]) {
       printf("Press Ctrl+C to exit.\n");
     }
   }
-
-  // Start children (sound + keyboard)
   if (!start_children(sound_dir, config_path, volume, verbose)) {
     return 1;
   }
-
   int status;
   pid_t finished_pid;
-
   signal(SIGHUP, handle_sighup);
-
   pthread_t inotify_thread;
   struct inotify_thread_args in_args;
   if (is_daemon) {
-    // Monitor user config for changes
-    char user_cfg_path[MAX_PATH_LENGTH];
-    if (get_user_config_path(user_cfg_path, sizeof(user_cfg_path))) {
-      strncpy(in_args.path, user_cfg_path, sizeof(in_args.path) - 1);
+    char user_cfg_path2[MAX_PATH_LENGTH];
+    if (get_user_config_path(user_cfg_path2, sizeof(user_cfg_path2))) {
+      strncpy(in_args.path, user_cfg_path2, sizeof(in_args.path) - 1);
       in_args.path[sizeof(in_args.path) - 1] = '\0';
       pthread_create(&inotify_thread, NULL, inotify_thread_fn, &in_args);
       pthread_detach(inotify_thread);
     }
   }
-
-  // Main supervise loop: wait for child exits or reload requests
   while (1) {
     if (reload_requested) {
       reload_requested = 0;
-      // Re-read user config and optionally apply overrides only if
-      // override_config was set initially
-      char user_cfg_path[MAX_PATH_LENGTH];
-      if (get_user_config_path(user_cfg_path, sizeof(user_cfg_path))) {
+      char user_cfg_path3[MAX_PATH_LENGTH];
+      if (get_user_config_path(user_cfg_path3, sizeof(user_cfg_path3))) {
         char *cfg_sound = NULL;
         int cfg_volume = current_volume;
-        if (read_user_config(user_cfg_path, &cfg_sound, &cfg_volume)) {
+        if (read_user_config(user_cfg_path3, &cfg_sound, &cfg_volume)) {
           if (cfg_sound) {
             strncpy(current_sound_name, cfg_sound,
                     sizeof(current_sound_name) - 1);
@@ -730,25 +640,19 @@ int main(int argc, char *argv[]) {
           current_volume = cfg_volume;
         }
       }
-
-      // Validate new sound pack and paths
       if (validate_sound_pack(current_sound_name)) {
         if (!build_paths_for_sound(current_sound_name, current_config_path,
                                    sizeof(current_config_path),
                                    current_sound_dir,
                                    sizeof(current_sound_dir))) {
-          // Skip reload if paths invalid
           continue;
         }
-
-        // Restart children with new settings
         stop_children();
         start_children(current_sound_dir, current_config_path, current_volume,
                        current_verbose);
       }
       continue;
     }
-
     finished_pid = waitpid(-1, &status, WNOHANG);
     if (finished_pid == 0) {
       struct timespec ts;
@@ -777,7 +681,6 @@ int main(int argc, char *argv[]) {
         break;
     }
   }
-
   if (!is_daemon) {
     printf("KeyVibe exited.\n");
   }

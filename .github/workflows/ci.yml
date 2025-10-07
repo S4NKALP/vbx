@@ -1,5 +1,8 @@
-
 name: build-and-test
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 on:
   push:
@@ -40,5 +43,19 @@ jobs:
 
       - name: Smoke test help
         run: ./keyvibe --help || true
+
+      - name: Extra smoke tests (non-fatal)
+        run: |
+          ./keyvibe --reload || true
+          ./keyvibe --stop || true
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: keyvibe-binaries
+          path: |
+            keyvibe
+            keyvibe-audio
+            keyvibe-input
 
 

@@ -1,6 +1,5 @@
-
 CC = gcc
-CFLAGS = -Wall -Wextra -std=c99
+CFLAGS = -Wall -Wextra -std=c99 -Iinclude
 PREFIX ?= /usr
 
 # Pass PACKAGE_PREFIX macro for config.h
@@ -11,13 +10,13 @@ LDFLAGS_KEYBOARD = $(shell pkg-config --libs libevdev libinput libudev) -lpthrea
 
 # Targets
 KeyVibe_TARGET = keyvibe
-SOUND_TARGET = keyboard_sound_player
-KEYBOARD_TARGET = get_key_presses
+SOUND_TARGET = keyvibe-audio
+KEYBOARD_TARGET = keyvibe-input
 
 # Sources
-KeyVibe_SOURCE = keyvibe.c
-SOUND_SOURCE = keyboard_sound_player.c
-KEYBOARD_SOURCE = get_key_presses.c
+KeyVibe_SOURCE = src/keyvibe_main.c
+SOUND_SOURCE = src/keyvibe_audio.c
+KEYBOARD_SOURCE = src/keyvibe_input.c
 
 # Install paths
 BINDIR = $(PREFIX)/bin
