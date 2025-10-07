@@ -1,8 +1,13 @@
+
 #define _POSIX_C_SOURCE 200809L
 
 #include "config.h"
 #include <dirent.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <getopt.h>
+#include <json-c/json.h>
+#include <pwd.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,9 +15,8 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
-#include <json-c/json.h>
-#include <pwd.h>
 
 #define MAX_PATH_LENGTH 512
 #define AUDIO_BASE_DIR KeyVibe_DATA_DIR "/audio"
@@ -21,6 +25,8 @@
 // Global variables for cleanup
 pid_t keyboard_pid = 0;
 pid_t sound_pid = 0;
+static char pidfile_path[MAX_PATH_LENGTH] = {0};
+static int is_daemon = 0;
 
 void print_usage(const char *program_name) {
   printf("KeyVibe - Mechanical Keyboard Sound Simulator\n\n");
@@ -30,10 +36,13 @@ void print_usage(const char *program_name) {
   printf("  -V, --volume VOLUME      Set volume [0-100] (default: 50)\n");
   printf("  -c, --override-config    Apply -s/-V to override loaded config\n");
   printf("  -l, --list               List available sound packs\n");
+  printf("      --daemon             Run in background (write PID file)\n");
+  printf("      --stop               Stop background daemon\n");
   printf("  -h, --help               Show this help message\n");
   printf("  -v, --verbose            Enable verbose output\n");
   printf("\nConfiguration:\n");
-  printf("  Reads ~/.keyvibe.json if present. On first run, prompts to create it.\n");
+  printf("  Reads ~/.keyvibe.json if present. On first run, prompts to create "
+         "it.\n");
   printf("\nExamples:\n");
   printf("  %s                       # Use default sound (eg-oreo)\n",
          program_name);
@@ -107,7 +116,9 @@ int validate_sound_pack(const char *sound_name) {
 void cleanup_processes(int sig) {
   (void)sig; // Suppress unused parameter warning
 
-  printf("\nShutting down KeyVibe...\n");
+  if (!is_daemon) {
+    printf("\nShutting down KeyVibe...\n");
+  }
 
   if (sound_pid > 0) {
     kill(sound_pid, SIGTERM);
@@ -117,6 +128,10 @@ void cleanup_processes(int sig) {
   if (keyboard_pid > 0) {
     kill(keyboard_pid, SIGTERM);
     waitpid(keyboard_pid, NULL, 0);
+  }
+
+  if (pidfile_path[0] != '\0') {
+    unlink(pidfile_path);
   }
 
   exit(0);
@@ -150,7 +165,8 @@ static char *get_user_config_path(char *buffer, size_t buflen) {
   const char *home = getenv("HOME");
   if (!home || strlen(home) == 0) {
     struct passwd *pw = getpwuid(getuid());
-    if (pw && pw->pw_dir) home = pw->pw_dir;
+    if (pw && pw->pw_dir)
+      home = pw->pw_dir;
   }
   if (!home) {
     return NULL;
@@ -159,38 +175,122 @@ static char *get_user_config_path(char *buffer, size_t buflen) {
   return buffer;
 }
 
+static const char *get_runtime_dir() {
+  const char *rd = getenv("XDG_RUNTIME_DIR");
+  if (rd && strlen(rd) > 0)
+    return rd;
+  return "/tmp";
+}
+
+static void build_pidfile_path(char *buffer, size_t buflen) {
+  const char *rd = get_runtime_dir();
+  snprintf(buffer, buflen, "%s/keyvibe-%d.pid", rd, (int)getuid());
+}
+
+static int read_pidfile(const char *path, pid_t *out_pid) {
+  FILE *f = fopen(path, "r");
+  if (!f)
+    return 0;
+  long val = -1;
+  if (fscanf(f, "%ld", &val) == 1 && val > 0) {
+    *out_pid = (pid_t)val;
+    fclose(f);
+    return 1;
+  }
+  fclose(f);
+  return 0;
+}
+
+static int write_pidfile(const char *path, pid_t pid) {
+  FILE *f = fopen(path, "w");
+  if (!f)
+    return 0;
+  fprintf(f, "%ld\n", (long)pid);
+  fclose(f);
+  return 1;
+}
+
+static int process_is_running(pid_t pid) {
+  if (pid <= 0)
+    return 0;
+  if (kill(pid, 0) == 0)
+    return 1;
+  return 0;
+}
+
+static void daemonize_self() {
+  pid_t pid = fork();
+  if (pid < 0)
+    exit(1);
+  if (pid > 0)
+    exit(0); // Parent exits
+
+  if (setsid() < 0)
+    exit(1);
+
+  pid = fork();
+  if (pid < 0)
+    exit(1);
+  if (pid > 0)
+    exit(0);
+
+  umask(0);
+  chdir("/");
+
+  int fd = open("/dev/null", O_RDWR);
+  if (fd >= 0) {
+    dup2(fd, STDIN_FILENO);
+    dup2(fd, STDOUT_FILENO);
+    dup2(fd, STDERR_FILENO);
+    if (fd > 2)
+      close(fd);
+  }
+}
+
 static int write_user_config(const char *path, const char *sound, int volume) {
   json_object *root = json_object_new_object();
-  if (!root) return 0;
+  if (!root)
+    return 0;
   json_object_object_add(root, "sound", json_object_new_string(sound));
   json_object_object_add(root, "volume", json_object_new_int(volume));
-  const char *json_str = json_object_to_json_string_ext(root, JSON_C_TO_STRING_PRETTY);
+  const char *json_str =
+      json_object_to_json_string_ext(root, JSON_C_TO_STRING_PRETTY);
   FILE *f = fopen(path, "w");
-  if (!f) { json_object_put(root); return 0; }
+  if (!f) {
+    json_object_put(root);
+    return 0;
+  }
   fprintf(f, "%s\n", json_str);
   fclose(f);
   json_object_put(root);
   return 1;
 }
 
-static int read_user_config(const char *path, char **out_sound, int *out_volume) {
+static int read_user_config(const char *path, char **out_sound,
+                            int *out_volume) {
   FILE *f = fopen(path, "r");
-  if (!f) return 0;
+  if (!f)
+    return 0;
   fseek(f, 0, SEEK_END);
   long sz = ftell(f);
   rewind(f);
   char *buf = malloc(sz + 1);
-  if (!buf) { fclose(f); return 0; }
+  if (!buf) {
+    fclose(f);
+    return 0;
+  }
   fread(buf, 1, sz, f);
   buf[sz] = '\0';
   fclose(f);
   json_object *root = json_tokener_parse(buf);
   free(buf);
-  if (!root) return 0;
+  if (!root)
+    return 0;
   json_object *o;
   if (json_object_object_get_ex(root, "sound", &o)) {
     const char *s = json_object_get_string(o);
-    if (s) *out_sound = strdup(s);
+    if (s)
+      *out_sound = strdup(s);
   }
   if (json_object_object_get_ex(root, "volume", &o)) {
     *out_volume = json_object_get_int(o);
@@ -203,15 +303,20 @@ int main(int argc, char *argv[]) {
   char *sound_name = "eg-oreo"; // Default sound pack
   int verbose = 0;
   int list_sounds = 0;
+  int flag_daemon = 0;
+  int flag_stop = 0;
 
   // Parse command line arguments
-  static struct option long_options[] = {{"sound", required_argument, 0, 's'},
-                                         {"volume", required_argument, 0, 'V'},
-                                         {"override-config", no_argument, 0, 'c'},
-                                         {"list", no_argument, 0, 'l'},
-                                         {"help", no_argument, 0, 'h'},
-                                         {"verbose", no_argument, 0, 'v'},
-                                         {0, 0, 0, 0}};
+  static struct option long_options[] = {
+      {"sound", required_argument, 0, 's'},
+      {"volume", required_argument, 0, 'V'},
+      {"override-config", no_argument, 0, 'c'},
+      {"list", no_argument, 0, 'l'},
+      {"daemon", no_argument, 0, 1000},
+      {"stop", no_argument, 0, 1001},
+      {"help", no_argument, 0, 'h'},
+      {"verbose", no_argument, 0, 'v'},
+      {0, 0, 0, 0}};
 
   int volume = 50;
   int override_config = 0;
@@ -222,16 +327,20 @@ int main(int argc, char *argv[]) {
   char user_cfg_path[MAX_PATH_LENGTH];
   if (get_user_config_path(user_cfg_path, sizeof(user_cfg_path))) {
     if (access(user_cfg_path, R_OK) == 0) {
-      char *cfg_sound = NULL; int cfg_volume = volume;
+      char *cfg_sound = NULL;
+      int cfg_volume = volume;
       if (read_user_config(user_cfg_path, &cfg_sound, &cfg_volume)) {
-        if (cfg_sound) { sound_name = cfg_sound; }
+        if (cfg_sound) {
+          sound_name = cfg_sound;
+        }
         volume = cfg_volume;
       }
     }
   }
 
   int opt;
-  while ((opt = getopt_long(argc, argv, "s:V:clhv", long_options, NULL)) != -1) {
+  while ((opt = getopt_long(argc, argv, "s:V:clhv", long_options, NULL)) !=
+         -1) {
     switch (opt) {
     case 's':
       cli_sound = optarg;
@@ -248,6 +357,12 @@ int main(int argc, char *argv[]) {
       break;
     case 'l':
       list_sounds = 1;
+      break;
+    case 1000:
+      flag_daemon = 1;
+      break;
+    case 1001:
+      flag_stop = 1;
       break;
     case 'h':
       print_usage(argv[0]);
@@ -266,10 +381,49 @@ int main(int argc, char *argv[]) {
     return list_sound_packs();
   }
 
+  // PID file path
+  build_pidfile_path(pidfile_path, sizeof(pidfile_path));
+
+  // Handle stop command early
+  if (flag_stop) {
+    pid_t running_pid = 0;
+    if (!read_pidfile(pidfile_path, &running_pid)) {
+      fprintf(stderr, "KeyVibe: no pidfile found at %s\n", pidfile_path);
+      return 1;
+    }
+    if (!process_is_running(running_pid)) {
+      fprintf(stderr,
+              "KeyVibe: process %ld not running, removing stale pidfile\n",
+              (long)running_pid);
+      unlink(pidfile_path);
+      return 1;
+    }
+    if (kill(running_pid, SIGTERM) != 0) {
+      perror("kill");
+      return 1;
+    }
+    // Wait up to ~3s for it to exit
+    for (int i = 0; i < 30; i++) {
+      if (!process_is_running(running_pid)) {
+        unlink(pidfile_path);
+        printf("KeyVibe stopped.\n");
+        return 0;
+      }
+      struct timespec ts;
+      ts.tv_sec = 0;
+      ts.tv_nsec = 100000000L; // 100ms
+      nanosleep(&ts, NULL);
+    }
+    fprintf(stderr, "KeyVibe: process did not stop in time\n");
+    return 1;
+  }
+
   // Apply CLI overrides only if -c/--override-config was provided
   if (override_config) {
-    if (cli_sound != NULL) sound_name = cli_sound;
-    if (cli_volume >= 0) volume = cli_volume;
+    if (cli_sound != NULL)
+      sound_name = cli_sound;
+    if (cli_volume >= 0)
+      volume = cli_volume;
   }
 
   // If no config file existed, create one with defaults
@@ -314,6 +468,25 @@ int main(int argc, char *argv[]) {
   signal(SIGINT, cleanup_processes);
   signal(SIGTERM, cleanup_processes);
 
+  // If daemon mode requested, ensure not already running, then daemonize
+  if (flag_daemon) {
+    pid_t existing = 0;
+    if (read_pidfile(pidfile_path, &existing) && process_is_running(existing)) {
+      fprintf(stderr,
+              "KeyVibe already running (pid %ld). Use --stop to stop it.\n",
+              (long)existing);
+      return 1;
+    }
+    daemonize_self();
+    is_daemon = 1;
+    // Write our pidfile (this is the supervising process)
+    if (!write_pidfile(pidfile_path, getpid())) {
+      // If we cannot write pidfile, still continue but warn and run in
+      // foreground to avoid orphaning However we're already daemonized; best we
+      // can do is proceed.
+    }
+  }
+
   // Build paths
   char config_path[MAX_PATH_LENGTH];
   char sound_dir[MAX_PATH_LENGTH];
@@ -322,15 +495,17 @@ int main(int argc, char *argv[]) {
            AUDIO_BASE_DIR, sound_name);
   snprintf(sound_dir, sizeof(sound_dir), "%s/%s", AUDIO_BASE_DIR, sound_name);
 
-  if (verbose) {
+  if (verbose && !is_daemon) {
     printf("KeyVibe starting...\n");
     printf("Sound pack: %s\n", sound_name);
     printf("Config file: %s\n", config_path);
     printf("Working directory: %s\n", sound_dir);
     printf("Press Ctrl+C to exit.\n\n");
   } else {
-    printf("KeyVibe started with sound pack: %s\n", sound_name);
-    printf("Press Ctrl+C to exit.\n");
+    if (!is_daemon) {
+      printf("KeyVibe started with sound pack: %s\n", sound_name);
+      printf("Press Ctrl+C to exit.\n");
+    }
   }
 
   // Create pipe for communication
@@ -430,6 +605,8 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  printf("KeyVibe exited.\n");
+  if (!is_daemon) {
+    printf("KeyVibe exited.\n");
+  }
   return 0;
 }
