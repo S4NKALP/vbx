@@ -1,3 +1,4 @@
+
 CC = gcc
 CFLAGS = -Wall -Wextra -std=c99
 PREFIX ?= /usr
@@ -28,7 +29,7 @@ all: $(KeyVibe_TARGET) $(SOUND_TARGET) $(KEYBOARD_TARGET)
 
 # Build main launcher (needs json-c)
 $(KeyVibe_TARGET): $(KeyVibe_SOURCE)
-	$(CC) $(CFLAGS) $(CPPFLAGS) -o $@ $< -ljson-c
+	$(CC) $(CFLAGS) $(CPPFLAGS) -o $@ $< -ljson-c -lpthread
 
 $(SOUND_TARGET): $(SOUND_SOURCE)
 	$(CC) $(CFLAGS) $(CPPFLAGS) -o $@ $< $(LDFLAGS_SOUND)
