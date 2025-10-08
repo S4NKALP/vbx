@@ -21,6 +21,7 @@
 
 #define MAX_PATH_LENGTH 512
 #define AUDIO_BASE_DIR KeyVibe_DATA_DIR "/audio"
+#define USER_AUDIO_SUBPATH "/.local/share/keyvibe/audio"
 #define USER_CONFIG_FILENAME ".keyvibe.json"
 
 // Global variables for cleanup
@@ -34,6 +35,7 @@ static char current_sound_name[MAX_PATH_LENGTH] = {0};
 static int current_verbose = 0;
 static char current_config_path[MAX_PATH_LENGTH] = {0};
 static char current_sound_dir[MAX_PATH_LENGTH] = {0};
+static int current_mute = 0;
 
 void print_usage(const char *program_name) {
   printf("KeyVibe - Mechanical Keyboard Sound Simulator\n\n");
@@ -46,6 +48,8 @@ void print_usage(const char *program_name) {
   printf("      --daemon             Run in background (write PID file)\n");
   printf("      --stop               Stop background daemon\n");
   printf("      --reload             Send reload signal to running daemon\n");
+  printf("      --mute               Mute sound\n");
+  printf("      --unmute             Unmute sound\n");
   printf("  -h, --help               Show this help message\n");
   printf("  -v, --verbose            Enable verbose output\n");
   printf("\nConfiguration:\n");
@@ -68,44 +72,100 @@ int list_sound_packs() {
   char path[MAX_PATH_LENGTH];
   struct stat st;
 
-  dir = opendir(AUDIO_BASE_DIR);
-  if (dir == NULL) {
-    fprintf(stderr, "Error: Cannot open audio directory '%s'\n",
-            AUDIO_BASE_DIR);
-    fprintf(stderr, "Make sure you're running from the correct directory.\n");
-    return 1;
+  // Determine user audio dir
+  char user_audio_dir[MAX_PATH_LENGTH] = {0};
+  const char *home = getenv("HOME");
+  if (!home || strlen(home) == 0) {
+    struct passwd *pw = getpwuid(getuid());
+    if (pw && pw->pw_dir)
+      home = pw->pw_dir;
+  }
+  if (home) {
+    snprintf(user_audio_dir, sizeof(user_audio_dir), "%s%s", home,
+             USER_AUDIO_SUBPATH);
   }
 
   printf("Available sound packs:\n");
   printf("======================\n");
 
-  while ((entry = readdir(dir)) != NULL) {
-    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
-      continue;
-    snprintf(path, sizeof(path), "%s/%s", AUDIO_BASE_DIR, entry->d_name);
-    if (stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
-      printf("  %s\n", entry->d_name);
+  // List user packs first (if available)
+  if (user_audio_dir[0] && (dir = opendir(user_audio_dir)) != NULL) {
+    while ((entry = readdir(dir)) != NULL) {
+      if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+        continue;
+      snprintf(path, sizeof(path), "%s/%s", user_audio_dir, entry->d_name);
+      if (stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
+        printf("  %s (user)\n", entry->d_name);
+      }
     }
+    closedir(dir);
   }
 
-  closedir(dir);
+  // Then list system packs
+  dir = opendir(AUDIO_BASE_DIR);
+  if (dir != NULL) {
+    while ((entry = readdir(dir)) != NULL) {
+      if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+        continue;
+      snprintf(path, sizeof(path), "%s/%s", AUDIO_BASE_DIR, entry->d_name);
+      if (stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
+        printf("  %s (system)\n", entry->d_name);
+      }
+    }
+    closedir(dir);
+  }
+
+  return 0;
+}
+
+static void get_user_audio_dir(char *buffer, size_t buflen) {
+  buffer[0] = '\0';
+  const char *home = getenv("HOME");
+  if (!home || strlen(home) == 0) {
+    struct passwd *pw = getpwuid(getuid());
+    if (pw && pw->pw_dir)
+      home = pw->pw_dir;
+  }
+  if (home)
+    snprintf(buffer, buflen, "%s%s", home, USER_AUDIO_SUBPATH);
+}
+
+static int resolve_sound_base_dir(const char *sound_name, char *out_basedir,
+                                  size_t out_sz) {
+  char user_audio_dir[MAX_PATH_LENGTH];
+  get_user_audio_dir(user_audio_dir, sizeof(user_audio_dir));
+  if (user_audio_dir[0]) {
+    char p[MAX_PATH_LENGTH];
+    snprintf(p, sizeof(p), "%s/%s/config.json", user_audio_dir, sound_name);
+    if (access(p, R_OK) == 0) {
+      strncpy(out_basedir, user_audio_dir, out_sz - 1);
+      out_basedir[out_sz - 1] = '\0';
+      return 1;
+    }
+  }
+  // Fallback to system dir
+  char p2[MAX_PATH_LENGTH];
+  snprintf(p2, sizeof(p2), "%s/%s/config.json", AUDIO_BASE_DIR, sound_name);
+  if (access(p2, R_OK) == 0) {
+    strncpy(out_basedir, AUDIO_BASE_DIR, out_sz - 1);
+    out_basedir[out_sz - 1] = '\0';
+    return 1;
+  }
   return 0;
 }
 
 int validate_sound_pack(const char *sound_name) {
-  char config_path[MAX_PATH_LENGTH];
-  char sound_path[MAX_PATH_LENGTH];
-
-  snprintf(config_path, sizeof(config_path), "%s/%s/config.json",
-           AUDIO_BASE_DIR, sound_name);
-  snprintf(sound_path, sizeof(sound_path), "%s/%s", AUDIO_BASE_DIR, sound_name);
-
-  if (access(sound_path, F_OK) != 0) {
-    fprintf(stderr, "Error: Sound pack '%s' not found in %s/\n", sound_name,
-            AUDIO_BASE_DIR);
+  char basedir[MAX_PATH_LENGTH];
+  if (!resolve_sound_base_dir(sound_name, basedir, sizeof(basedir))) {
+    fprintf(stderr,
+            "Error: Sound pack '%s' not found in user or system dirs.\n",
+            sound_name);
     fprintf(stderr, "Use --list to see available sound packs.\n");
     return 0;
   }
+  char config_path[MAX_PATH_LENGTH];
+  snprintf(config_path, sizeof(config_path), "%s/%s/config.json", basedir,
+           sound_name);
   if (access(config_path, R_OK) != 0) {
     fprintf(stderr, "Error: Config file not found: %s\n", config_path);
     return 0;
@@ -174,7 +234,11 @@ static const char *get_runtime_dir() {
 static int build_paths_for_sound(const char *sound_name, char *out_config_path,
                                  size_t out_config_sz, char *out_sound_dir,
                                  size_t out_sound_sz) {
-  size_t base_len = strlen(AUDIO_BASE_DIR);
+  char basedir[MAX_PATH_LENGTH];
+  if (!resolve_sound_base_dir(sound_name, basedir, sizeof(basedir))) {
+    return 0;
+  }
+  size_t base_len = strlen(basedir);
   size_t name_len = strlen(sound_name);
   const char *cfg_suffix = "/config.json";
   size_t cfg_suffix_len = strlen(cfg_suffix);
@@ -186,9 +250,9 @@ static int build_paths_for_sound(const char *sound_name, char *out_config_path,
     fprintf(stderr, "Error: sound pack name too long for directory buffer.\n");
     return 0;
   }
-  snprintf(out_config_path, out_config_sz, "%s/%s%s", AUDIO_BASE_DIR,
-           sound_name, cfg_suffix);
-  snprintf(out_sound_dir, out_sound_sz, "%s/%s", AUDIO_BASE_DIR, sound_name);
+  snprintf(out_config_path, out_config_sz, "%s/%s%s", basedir, sound_name,
+           cfg_suffix);
+  snprintf(out_sound_dir, out_sound_sz, "%s/%s", basedir, sound_name);
   return 1;
 }
 
@@ -267,7 +331,7 @@ static void stop_children() {
 }
 
 static int start_children(const char *sound_dir, const char *config_path,
-                          int volume, int verbose) {
+                          int volume, int verbose, int mute) {
   (void)config_path;
   int pipefd[2];
   if (pipe(pipefd) == -1) {
@@ -296,8 +360,10 @@ static int start_children(const char *sound_dir, const char *config_path,
     snprintf(volume_str, sizeof(volume_str), "%d", volume);
     char verbose_str[8];
     snprintf(verbose_str, sizeof(verbose_str), "%d", verbose);
+    char mute_str[8];
+    snprintf(mute_str, sizeof(mute_str), "%d", mute);
     execl(sound_player_path, "keyvibe-audio", "config.json", volume_str,
-          verbose_str, (char *)NULL);
+          verbose_str, mute_str, (char *)NULL);
     perror("execl keyvibe-audio");
     exit(1);
   }
@@ -328,6 +394,19 @@ static int start_children(const char *sound_dir, const char *config_path,
 static void handle_sighup(int sig) {
   (void)sig;
   reload_requested = 1;
+}
+
+static void write_mute_state(int mute) {
+  char mute_file[MAX_PATH_LENGTH];
+  const char *rd = get_runtime_dir();
+  snprintf(mute_file, sizeof(mute_file), "%s/keyvibe-mute-%d", rd,
+           (int)getuid());
+
+  FILE *f = fopen(mute_file, "w");
+  if (f) {
+    fprintf(f, "%d\n", mute);
+    fclose(f);
+  }
 }
 
 struct inotify_thread_args {
@@ -428,6 +507,8 @@ int main(int argc, char *argv[]) {
       {"daemon", no_argument, 0, 1000},
       {"stop", no_argument, 0, 1001},
       {"reload", no_argument, 0, 1002},
+      {"mute", no_argument, 0, 1003},
+      {"unmute", no_argument, 0, 1004},
       {"help", no_argument, 0, 'h'},
       {"verbose", no_argument, 0, 'v'},
       {0, 0, 0, 0}};
@@ -487,6 +568,32 @@ int main(int argc, char *argv[]) {
         return 1;
       }
       printf("KeyVibe reload signal sent.\n");
+      return 0;
+    }
+    case 1003: {
+      build_pidfile_path(pidfile_path, sizeof(pidfile_path));
+      pid_t running_pid = 0;
+      if (!read_pidfile(pidfile_path, &running_pid) ||
+          !process_is_running(running_pid)) {
+        fprintf(stderr, "KeyVibe: not running.\n");
+        return 1;
+      }
+      // Write mute state to file instead of using signals
+      write_mute_state(1);
+      printf("KeyVibe muted.\n");
+      return 0;
+    }
+    case 1004: {
+      build_pidfile_path(pidfile_path, sizeof(pidfile_path));
+      pid_t running_pid = 0;
+      if (!read_pidfile(pidfile_path, &running_pid) ||
+          !process_is_running(running_pid)) {
+        fprintf(stderr, "KeyVibe: not running.\n");
+        return 1;
+      }
+      // Write mute state to file instead of using signals
+      write_mute_state(0);
+      printf("KeyVibe unmuted.\n");
       return 0;
     }
     case 'h':
@@ -607,7 +714,7 @@ int main(int argc, char *argv[]) {
       printf("Press Ctrl+C to exit.\n");
     }
   }
-  if (!start_children(sound_dir, config_path, volume, verbose)) {
+  if (!start_children(sound_dir, config_path, volume, verbose, current_mute)) {
     return 1;
   }
   int status;
@@ -649,7 +756,7 @@ int main(int argc, char *argv[]) {
         }
         stop_children();
         start_children(current_sound_dir, current_config_path, current_volume,
-                       current_verbose);
+                       current_verbose, current_mute);
       }
       continue;
     }

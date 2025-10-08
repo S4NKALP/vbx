@@ -1,4 +1,5 @@
 #define _GNU_SOURCE
+#include <errno.h>
 #include <json-c/json.h>
 #include <libgen.h>
 #include <pthread.h>
@@ -43,6 +44,7 @@ typedef struct {
 SoundPack g_sound_pack = {0};
 float g_volume = 1.0f;
 int g_verbose = 0;
+int g_mute = 0;
 pthread_t sound_threads[MAX_CONCURRENT_SOUNDS];
 volatile int thread_active[MAX_CONCURRENT_SOUNDS] = {0};
 pthread_mutex_t thread_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -390,6 +392,13 @@ int find_available_thread_slot() {
 }
 
 void play_sound_segment(int key_code, int is_pressed) {
+  if (g_mute) {
+    if (g_verbose) {
+      printf("Sound muted - ignoring key %d (%s)\n", key_code,
+             is_pressed ? "press" : "release");
+    }
+    return;
+  }
   if (!g_sound_pack.is_multi && !is_pressed) {
     if (g_verbose) {
       printf("Single mode: Ignoring key release for key %d\n", key_code);
@@ -476,11 +485,36 @@ void cleanup() {
   pthread_mutex_unlock(&thread_mutex);
 }
 
+static int read_mute_state() {
+  char mute_file[MAX_LINE_LENGTH];
+  const char *rd = getenv("XDG_RUNTIME_DIR");
+  if (!rd || strlen(rd) == 0) {
+    rd = "/tmp";
+  }
+  snprintf(mute_file, sizeof(mute_file), "%s/keyvibe-mute-%d", rd,
+           (int)getuid());
+
+  FILE *f = fopen(mute_file, "r");
+  if (!f) {
+    return 0; // Default to unmuted if file doesn't exist
+  }
+
+  int mute = 0;
+  if (fscanf(f, "%d", &mute) == 1) {
+    fclose(f);
+    return mute;
+  }
+  fclose(f);
+  return 0;
+}
+
 int main(int argc, char *argv[]) {
-  if (argc < 2 || argc > 4) {
-    fprintf(stderr, "Usage: %s <config.json> [volume] [verbose]\n", argv[0]);
+  if (argc < 2 || argc > 5) {
+    fprintf(stderr, "Usage: %s <config.json> [volume] [verbose] [mute]\n",
+            argv[0]);
     fprintf(stderr, "  volume: 0-100 (default: 50)\n");
     fprintf(stderr, "  verbose: 1 to enable verbose output (default: 0)\n");
+    fprintf(stderr, "  mute: 1 to mute sound (default: 0)\n");
     return 1;
   }
   if (argc >= 3) {
@@ -500,6 +534,12 @@ int main(int argc, char *argv[]) {
       printf("Verbose mode enabled\n");
     }
   }
+  if (argc >= 5) {
+    g_mute = atoi(argv[4]);
+    if (g_mute) {
+      printf("Sound muted\n");
+    }
+  }
   if (load_sound_config(argv[1]) != 0) {
     fprintf(stderr, "Failed to load sound configuration\n");
     return 1;
@@ -508,16 +548,24 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "Failed to initialize audio\n");
     return 1;
   }
+  // Remove signal handlers - we'll use file-based approach instead
   fd_set readfds;
   struct timeval timeout;
   char line[MAX_LINE_LENGTH];
   while (1) {
+    // Check mute state from file periodically
+    g_mute = read_mute_state();
+
     FD_ZERO(&readfds);
     FD_SET(STDIN_FILENO, &readfds);
     timeout.tv_sec = 1;
     timeout.tv_usec = 0;
     int ready = select(STDIN_FILENO + 1, &readfds, NULL, NULL, &timeout);
     if (ready == -1) {
+      if (errno == EINTR) {
+        // Signal interrupted select, continue
+        continue;
+      }
       perror("select");
       break;
     } else if (ready == 0) {
