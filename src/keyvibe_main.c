@@ -41,14 +41,14 @@ void print_usage(const char *program_name) {
   printf("KeyVibe - Mechanical Keyboard Sound Simulator\n\n");
   printf("Usage: %s [OPTIONS]\n\n", program_name);
   printf("Options:\n");
-  printf("  -s, --sound SOUND_NAME   Select sound pack (default: eg-oreo)\n");
+  printf("  -S, --sound SOUND_NAME   Select sound pack (default: eg-oreo)\n");
   printf("  -V, --volume VOLUME      Set volume [0-100] (default: 50)\n");
   printf("  -c, --override-config    Apply -s/-V to override loaded config\n");
   printf("  -l, --list               List available sound packs\n");
-  printf("      --daemon             Run in background (write PID file)\n");
-  printf("      --stop               Stop background daemon\n");
-  printf("      --mute               Mute sound\n");
-  printf("      --unmute             Unmute sound\n");
+  printf("  -d, --daemon             Run in background (write PID file)\n");
+  printf("  -s, --stop               Stop background daemon\n");
+  printf("  -m, --mute               Mute sound\n");
+  printf("  -u, --unmute             Unmute sound\n");
   printf("  -h, --help               Show this help message\n");
   printf("  -v, --verbose            Enable verbose output\n");
   printf("\nConfiguration:\n");
@@ -291,44 +291,6 @@ static int process_is_running(pid_t pid) {
   return 0;
 }
 
-// Enforce exact long option matching: reject prefixes like --sto for --stop
-static int is_valid_long_option_name(const char *name) {
-  static const char *valid[] = {
-      "sound", "volume", "override-config", "list", "daemon",
-      "stop",  "mute",   "unmute",          "help", "verbose"};
-  size_t n = sizeof(valid) / sizeof(valid[0]);
-  for (size_t i = 0; i < n; i++) {
-    if (strcmp(name, valid[i]) == 0)
-      return 1;
-  }
-  return 0;
-}
-
-static int prevalidate_long_options(int argc, char *argv[]) {
-  for (int i = 1; i < argc; i++) {
-    const char *arg = argv[i];
-    if (arg[0] == '-' && arg[1] == '-') {
-      const char *name_start = arg + 2;
-      if (*name_start == '\0')
-        continue; // "--" only, let getopt handle
-      const char *eq = strchr(name_start, '=');
-      size_t name_len = eq ? (size_t)(eq - name_start) : strlen(name_start);
-      char name_buf[64];
-      if (name_len == 0 || name_len >= sizeof(name_buf)) {
-        fprintf(stderr, "Unknown option: %s\n", arg);
-        return 0;
-      }
-      memcpy(name_buf, name_start, name_len);
-      name_buf[name_len] = '\0';
-      if (!is_valid_long_option_name(name_buf)) {
-        fprintf(stderr, "Unknown option: %s (use full option name)\n", arg);
-        return 0;
-      }
-    }
-  }
-  return 1;
-}
-
 static void daemonize_self() {
   pid_t pid = fork();
   if (pid < 0)
@@ -547,14 +509,14 @@ int main(int argc, char *argv[]) {
   int flag_daemon = 0;
   int flag_stop = 0;
   static struct option long_options[] = {
-      {"sound", required_argument, 0, 's'},
+      {"sound", required_argument, 0, 'S'},
       {"volume", required_argument, 0, 'V'},
       {"override-config", no_argument, 0, 'c'},
       {"list", no_argument, 0, 'l'},
-      {"daemon", no_argument, 0, 1000},
-      {"stop", no_argument, 0, 1001},
-      {"mute", no_argument, 0, 1003},
-      {"unmute", no_argument, 0, 1004},
+      {"daemon", no_argument, 0, 'd'},
+      {"stop", no_argument, 0, 's'},
+      {"mute", no_argument, 0, 'm'},
+      {"unmute", no_argument, 0, 'u'},
       {"help", no_argument, 0, 'h'},
       {"verbose", no_argument, 0, 'v'},
       {0, 0, 0, 0}};
@@ -576,15 +538,53 @@ int main(int argc, char *argv[]) {
       }
     }
   }
-  // Strict long-option prevalidation to avoid prefix matching
-  if (!prevalidate_long_options(argc, argv)) {
-    return 1;
-  }
   int opt;
-  while ((opt = getopt_long(argc, argv, "s:V:clhv", long_options, NULL)) !=
+  while ((opt = getopt_long(argc, argv, "S:V:clhdsmuv", long_options, NULL)) !=
          -1) {
     switch (opt) {
+    case 'd':
+      flag_daemon = 1;
+      break;
     case 's':
+      flag_stop = 1;
+      break;
+    case 'm': {
+      build_pidfile_path(pidfile_path, sizeof(pidfile_path));
+      pid_t running_pid = 0;
+      if (!read_pidfile(pidfile_path, &running_pid) ||
+          !process_is_running(running_pid)) {
+        fprintf(stderr, "KeyVibe: not running.\n");
+        if (sound_name_owned) {
+          free(sound_name);
+        }
+        return 1;
+      }
+      write_mute_state(1);
+      printf("KeyVibe muted.\n");
+      if (sound_name_owned) {
+        free(sound_name);
+      }
+      return 0;
+    }
+    case 'u': {
+      build_pidfile_path(pidfile_path, sizeof(pidfile_path));
+      pid_t running_pid = 0;
+      if (!read_pidfile(pidfile_path, &running_pid) ||
+          !process_is_running(running_pid)) {
+        fprintf(stderr, "KeyVibe: not running.\n");
+        if (sound_name_owned) {
+          free(sound_name);
+        }
+        return 1;
+      }
+      write_mute_state(0);
+      printf("KeyVibe unmuted.\n");
+      if (sound_name_owned) {
+        free(sound_name);
+      }
+      return 0;
+    }
+    case 'S':
       cli_sound = optarg;
       break;
     case 'V':
@@ -599,12 +599,6 @@ int main(int argc, char *argv[]) {
       break;
     case 'l':
       list_sounds = 1;
-      break;
-    case 1000:
-      flag_daemon = 1;
-      break;
-    case 1001:
-      flag_stop = 1;
       break;
     case 1003: {
       build_pidfile_path(pidfile_path, sizeof(pidfile_path));
