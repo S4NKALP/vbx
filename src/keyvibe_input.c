@@ -1,4 +1,5 @@
-// Renamed from get_key_presses.c to keyvibe_input.c (inlined)
+
+#include "utils.h"
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -50,8 +51,7 @@ static int open_restricted(const char *path, int flags, void *user_data) {
   (void)user_data;
   int fd = open(path, flags);
   if (fd < 0)
-    fprintf(stderr, "Failed to open %s because of %s.\n", path,
-            strerror(errno));
+    errorf("Failed to open %s because of %s.\n", path, strerror(errno));
   return fd < 0 ? -errno : fd;
 }
 
@@ -128,11 +128,9 @@ static int run_mainloop(struct libinput *libinput) {
   fd.fd = libinput_get_fd(libinput);
   fd.events = POLLIN;
   fd.revents = 0;
-  if (handle_events(libinput) != 0) {
-    fprintf(stderr, "Expected device added events on startup but got none. "
-                    "Maybe you don't have the right permissions?\n");
-    return -1;
-  }
+  if (handle_events(libinput) != 0)
+    return errorf("Expected device added events on startup but got none. Maybe "
+                  "you don't have the right permissions?\n");
   while (poll(&fd, 1, -1) > -1)
     handle_events(libinput);
   return 0;
@@ -170,23 +168,19 @@ int main(int argc, char *argv[]) {
     case '?':
       break;
     default:
-      fprintf(stderr, "%s: Invalid option `-%c`.\n", argv[0], opt);
+      errorf("%s: Invalid option `-%c`.\n", argv[0], opt);
       break;
     }
   }
   struct udev *udev = udev_new();
-  if (udev == NULL) {
-    fprintf(stderr, "Failed to initialize udev.\n");
-    return UDEV_FAILED;
-  }
+  if (udev == NULL)
+    return errorf("Failed to initialize udev.\n");
   struct libinput *libinput =
       libinput_udev_create_context(&interface, NULL, udev);
-  if (!libinput) {
-    fprintf(stderr, "Failed to initialize libinput from udev.\n");
-    return LIBINPUT_FAILED;
-  }
+  if (!libinput)
+    return errorf("Failed to initialize libinput from udev.\n");
   if (libinput_udev_assign_seat(libinput, "seat0") != 0) {
-    fprintf(stderr, "Failed to set seat.\n");
+    errorf("Failed to set seat.\n");
     libinput_unref(libinput);
     udev_unref(udev);
     return SEAT_FAILED;

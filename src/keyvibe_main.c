@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "config.h"
+#include "utils.h"
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -9,6 +10,7 @@
 #include <pthread.h>
 #include <pwd.h>
 #include <signal.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -135,9 +137,8 @@ static int resolve_sound_base_dir(const char *sound_name, char *out_basedir,
   if (user_audio_dir[0]) {
     char p[MAX_PATH_LENGTH];
     if ((size_t)snprintf(p, sizeof(p), "%s/%s/config.json", user_audio_dir,
-                         sound_name) >= sizeof(p)) {
-      // Path too long, skip user dir and try system dir
-    } else if (access(p, R_OK) == 0) {
+                         sound_name) < sizeof(p) &&
+        access(p, R_OK) == 0) {
       strncpy(out_basedir, user_audio_dir, out_sz - 1);
       out_basedir[out_sz - 1] = '\0';
       return 1;
@@ -208,15 +209,9 @@ static char *get_user_config_path(char *buffer, size_t buflen) {
   }
   if (!home)
     return NULL;
-  snprintf(buffer, buflen, "%s/%s", home, USER_CONFIG_FILENAME);
+  if (!safe_snprintf(buffer, buflen, "%s/%s", home, USER_CONFIG_FILENAME))
+    return NULL;
   return buffer;
-}
-
-static const char *get_runtime_dir() {
-  const char *rd = getenv("XDG_RUNTIME_DIR");
-  if (rd && strlen(rd) > 0)
-    return rd;
-  return "/tmp";
 }
 
 static int build_paths_for_sound(const char *sound_name, char *out_config_path,
@@ -238,46 +233,25 @@ static int build_paths_for_sound(const char *sound_name, char *out_config_path,
     fprintf(stderr, "Error: sound pack name too long for directory buffer.\n");
     return 0;
   }
-  snprintf(out_config_path, out_config_sz, "%s/%s%s", basedir, sound_name,
-           cfg_suffix);
-  snprintf(out_sound_dir, out_sound_sz, "%s/%s", basedir, sound_name);
+  if (!safe_snprintf(out_config_path, out_config_sz, "%s/%s%s", basedir,
+                     sound_name, cfg_suffix))
+    return 0;
+  if (!safe_snprintf(out_sound_dir, out_sound_sz, "%s/%s", basedir, sound_name))
+    return 0;
   return 1;
 }
 
-static void build_pidfile_path(char *buffer, size_t buflen) {
-  const char *rd = get_runtime_dir();
-  snprintf(buffer, buflen, "%s/keyvibe-%d.pid", rd, (int)getuid());
-}
-
-static int read_pidfile(const char *path, pid_t *out_pid) {
-  FILE *f = fopen(path, "r");
-  if (!f)
+// Helper: ensure daemon is running, return its pid or print a consistent error
+static int require_running_pid(pid_t *out_pid) {
+  build_pidfile_path(pidfile_path, sizeof(pidfile_path));
+  pid_t running_pid = 0;
+  if (!read_pidfile(pidfile_path, &running_pid) ||
+      !process_is_running(running_pid)) {
+    fprintf(stderr, "KeyVibe: not running.\n");
     return 0;
-  long val = -1;
-  if (fscanf(f, "%ld", &val) == 1 && val > 0) {
-    *out_pid = (pid_t)val;
-    fclose(f);
-    return 1;
   }
-  fclose(f);
-  return 0;
-}
-
-static int write_pidfile(const char *path, pid_t pid) {
-  FILE *f = fopen(path, "w");
-  if (!f)
-    return 0;
-  fprintf(f, "%ld\n", (long)pid);
-  fclose(f);
+  *out_pid = running_pid;
   return 1;
-}
-
-static int process_is_running(pid_t pid) {
-  if (pid <= 0)
-    return 0;
-  if (kill(pid, 0) == 0)
-    return 1;
-  return 0;
 }
 
 static void daemonize_self() {
@@ -558,11 +532,8 @@ int main(int argc, char *argv[]) {
       flag_stop = 1;
       break;
     case 'm': {
-      build_pidfile_path(pidfile_path, sizeof(pidfile_path));
       pid_t running_pid = 0;
-      if (!read_pidfile(pidfile_path, &running_pid) ||
-          !process_is_running(running_pid)) {
-        fprintf(stderr, "KeyVibe: not running.\n");
+      if (!require_running_pid(&running_pid)) {
         if (sound_name_owned) {
           free(sound_name);
         }
@@ -576,11 +547,8 @@ int main(int argc, char *argv[]) {
       return 0;
     }
     case 'u': {
-      build_pidfile_path(pidfile_path, sizeof(pidfile_path));
       pid_t running_pid = 0;
-      if (!read_pidfile(pidfile_path, &running_pid) ||
-          !process_is_running(running_pid)) {
-        fprintf(stderr, "KeyVibe: not running.\n");
+      if (!require_running_pid(&running_pid)) {
         if (sound_name_owned) {
           free(sound_name);
         }
@@ -609,44 +577,7 @@ int main(int argc, char *argv[]) {
     case 'l':
       list_sounds = 1;
       break;
-    case 1003: {
-      build_pidfile_path(pidfile_path, sizeof(pidfile_path));
-      pid_t running_pid = 0;
-      if (!read_pidfile(pidfile_path, &running_pid) ||
-          !process_is_running(running_pid)) {
-        fprintf(stderr, "KeyVibe: not running.\n");
-        if (sound_name_owned) {
-          free(sound_name);
-        }
-        return 1;
-      }
-      // Write mute state to file instead of using signals
-      write_mute_state(1);
-      printf("KeyVibe muted.\n");
-      if (sound_name_owned) {
-        free(sound_name);
-      }
-      return 0;
-    }
-    case 1004: {
-      build_pidfile_path(pidfile_path, sizeof(pidfile_path));
-      pid_t running_pid = 0;
-      if (!read_pidfile(pidfile_path, &running_pid) ||
-          !process_is_running(running_pid)) {
-        fprintf(stderr, "KeyVibe: not running.\n");
-        if (sound_name_owned) {
-          free(sound_name);
-        }
-        return 1;
-      }
-      // Write mute state to file instead of using signals
-      write_mute_state(0);
-      printf("KeyVibe unmuted.\n");
-      if (sound_name_owned) {
-        free(sound_name);
-      }
-      return 0;
-    }
+    /* removed legacy long mute/unmute cases; use -m/-u or --mute/--unmute */
     case 'h':
       print_usage(argv[0]);
       if (sound_name_owned) {
@@ -674,21 +605,10 @@ int main(int argc, char *argv[]) {
   build_pidfile_path(pidfile_path, sizeof(pidfile_path));
   if (flag_stop) {
     pid_t running_pid = 0;
-    if (!read_pidfile(pidfile_path, &running_pid)) {
-      fprintf(stderr, "KeyVibe: no pidfile found at %s\n", pidfile_path);
+    if (!require_running_pid(&running_pid))
       return 1;
-    }
-    if (!process_is_running(running_pid)) {
-      fprintf(stderr,
-              "KeyVibe: process %ld not running, removing stale pidfile\n",
-              (long)running_pid);
-      unlink(pidfile_path);
-      return 1;
-    }
-    if (kill(running_pid, SIGTERM) != 0) {
-      perror("kill");
-      return 1;
-    }
+    if (kill(running_pid, SIGTERM) != 0)
+      return (perror("kill"), 1);
     for (int i = 0; i < 30; i++) {
       if (!process_is_running(running_pid)) {
         unlink(pidfile_path);
@@ -700,8 +620,7 @@ int main(int argc, char *argv[]) {
       ts.tv_nsec = 100000000L;
       nanosleep(&ts, NULL);
     }
-    fprintf(stderr, "KeyVibe: process did not stop in time\n");
-    return 1;
+    return errorf("KeyVibe: process did not stop in time\n");
   }
   if (override_config) {
     if (cli_sound != NULL)
@@ -730,14 +649,10 @@ int main(int argc, char *argv[]) {
            "%s/keyvibe-input", KeyVibe_BIN_DIR);
   snprintf(sound_player_path, sizeof(sound_player_path), "%s/keyvibe-audio",
            KeyVibe_BIN_DIR);
-  if (access(get_key_presses_path, X_OK) != 0) {
-    fprintf(stderr, "Error: Cannot find or execute %s\n", get_key_presses_path);
-    return 1;
-  }
-  if (access(sound_player_path, X_OK) != 0) {
-    fprintf(stderr, "Error: Cannot find or execute %s\n", sound_player_path);
-    return 1;
-  }
+  if (access(get_key_presses_path, X_OK) != 0 ||
+      access(sound_player_path, X_OK) != 0)
+    return errorf("Error: Cannot find or execute required binaries in %s\n",
+                  KeyVibe_BIN_DIR);
   signal(SIGINT, cleanup_processes);
   signal(SIGTERM, cleanup_processes);
   if (flag_daemon) {

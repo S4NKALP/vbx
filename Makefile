@@ -1,3 +1,4 @@
+
 CC = gcc
 CFLAGS = -Wall -Wextra -std=c99 -Iinclude
 PREFIX ?= /usr
@@ -14,9 +15,9 @@ SOUND_TARGET = keyvibe-audio
 KEYBOARD_TARGET = keyvibe-input
 
 # Sources
-KeyVibe_SOURCE = src/keyvibe_main.c
-SOUND_SOURCE = src/keyvibe_audio.c
-KEYBOARD_SOURCE = src/keyvibe_input.c
+KeyVibe_SOURCE = src/keyvibe_main.c src/utils.c
+SOUND_SOURCE = src/keyvibe_audio.c src/utils.c
+KEYBOARD_SOURCE = src/keyvibe_input.c src/utils.c
 
 # Install paths
 BINDIR = $(PREFIX)/bin
@@ -28,13 +29,13 @@ all: $(KeyVibe_TARGET) $(SOUND_TARGET) $(KEYBOARD_TARGET)
 
 # Build main launcher (needs json-c)
 $(KeyVibe_TARGET): $(KeyVibe_SOURCE)
-	$(CC) $(CFLAGS) $(CPPFLAGS) -o $@ $< -ljson-c -lpthread
+	$(CC) $(CFLAGS) $(CPPFLAGS) -o $@ $^ -ljson-c -lpthread
 
 $(SOUND_TARGET): $(SOUND_SOURCE)
-	$(CC) $(CFLAGS) $(CPPFLAGS) -o $@ $< $(LDFLAGS_SOUND)
+	$(CC) $(CFLAGS) $(CPPFLAGS) -o $@ $^ $(LDFLAGS_SOUND)
 
 $(KEYBOARD_TARGET): $(KEYBOARD_SOURCE)
-	$(CC) $(CFLAGS) $(CPPFLAGS) -o $@ $< $(LDFLAGS_KEYBOARD)
+	$(CC) $(CFLAGS) $(CPPFLAGS) -o $@ $^ $(LDFLAGS_KEYBOARD)
 
 clean:
 	rm -f $(KeyVibe_TARGET) $(SOUND_TARGET) $(KEYBOARD_TARGET)

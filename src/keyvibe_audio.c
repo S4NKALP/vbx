@@ -1,4 +1,6 @@
+
 #define _GNU_SOURCE
+#include "utils.h"
 #include <errno.h>
 #include <json-c/json.h>
 #include <libgen.h>
@@ -58,7 +60,9 @@ static void get_full_path(char *buffer, size_t buffer_size,
     strncpy(buffer, filename, buffer_size - 1);
     buffer[buffer_size - 1] = '\0';
   } else {
-    snprintf(buffer, buffer_size, "%s/%s", base_dir, filename);
+    if (!safe_snprintf(buffer, buffer_size, "%s/%s", base_dir, filename)) {
+      buffer[0] = '\0';
+    }
   }
 }
 
@@ -256,9 +260,11 @@ int init_audio() {
     return -1;
   }
   sf_close(test_sf);
-  printf("Sound file info: %ld frames, %d channels, %d Hz\n",
-         g_sound_pack.sf_info.frames, g_sound_pack.sf_info.channels,
-         g_sound_pack.sf_info.samplerate);
+  if (g_verbose) {
+    printf("Sound file info: %ld frames, %d channels, %d Hz\n",
+           g_sound_pack.sf_info.frames, g_sound_pack.sf_info.channels,
+           g_sound_pack.sf_info.samplerate);
+  }
   return 0;
 }
 
@@ -483,7 +489,8 @@ int parse_keyboard_event(const char *json_line, int *key_code,
 }
 
 void cleanup() {
-  printf("Cleaning up...\n");
+  if (g_verbose)
+    printf("Cleaning up...\n");
   usleep(500000);
   for (int i = 0; i < 256; i++) {
     if (g_sound_pack.multi_key_mappings[i].press) {
@@ -508,8 +515,10 @@ static int read_mute_state() {
   if (!rd || strlen(rd) == 0) {
     rd = "/tmp";
   }
-  snprintf(mute_file, sizeof(mute_file), "%s/keyvibe-mute-%d", rd,
-           (int)getuid());
+  if (!safe_snprintf(mute_file, sizeof(mute_file), "%s/keyvibe-mute-%d", rd,
+                     (int)getuid())) {
+    return 0;
+  }
 
   FILE *f = fopen(mute_file, "r");
   if (!f) {
@@ -541,9 +550,11 @@ int main(int argc, char *argv[]) {
     if (volume_percent > 100)
       volume_percent = 100;
     g_volume = volume_percent / 100.0f;
-    printf("Volume set to: %d%%\n", volume_percent);
+    if (g_verbose)
+      printf("Volume set to: %d%%\n", volume_percent);
   } else {
-    printf("Volume set to: 50%% (default)\n");
+    if (g_verbose)
+      printf("Volume set to: 50%% (default)\n");
   }
   if (argc >= 4) {
     g_verbose = atoi(argv[3]);
@@ -594,7 +605,8 @@ int main(int argc, char *argv[]) {
     if (FD_ISSET(STDIN_FILENO, &readfds)) {
       if (fgets(line, sizeof(line), stdin) == NULL) {
         if (feof(stdin)) {
-          printf("EOF reached on stdin\n");
+          if (g_verbose)
+            printf("EOF reached on stdin\n");
         } else {
           perror("fgets");
         }
