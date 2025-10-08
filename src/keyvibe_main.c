@@ -538,6 +538,26 @@ int main(int argc, char *argv[]) {
       }
     }
   }
+  for (int i = 1; i < argc; i++) {
+    if (argv[i][0] == '-' && argv[i][1] == '-') {
+      const char *a = argv[i] + 2;
+      const char *e = strchr(a, '=');
+      size_t n = e ? (size_t)(e - a) : strlen(a);
+      if (!((n == 5 && strncmp(a, "sound", 5) == 0) ||
+            (n == 6 && strncmp(a, "volume", 6) == 0) ||
+            (n == 16 && strncmp(a, "override-config", 16) == 0) ||
+            (n == 4 && strncmp(a, "list", 4) == 0) ||
+            (n == 6 && strncmp(a, "daemon", 6) == 0) ||
+            (n == 4 && strncmp(a, "stop", 4) == 0) ||
+            (n == 4 && strncmp(a, "mute", 4) == 0) ||
+            (n == 6 && strncmp(a, "unmute", 6) == 0) ||
+            (n == 4 && strncmp(a, "help", 4) == 0) ||
+            (n == 7 && strncmp(a, "verbose", 7) == 0))) {
+        fprintf(stderr, "Unknown option: %s (use full option name)\n", argv[i]);
+        return 1;
+      }
+    }
+  }
   int opt;
   while ((opt = getopt_long(argc, argv, "S:V:clhdsmuv", long_options, NULL)) !=
          -1) {
