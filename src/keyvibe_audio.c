@@ -36,7 +36,6 @@ typedef struct {
 } SoundPack;
 typedef struct {
   int key_code;
-  SoundPack *sound_pack;
   int thread_id;
   int is_pressed;
 } PlaybackData;
@@ -97,13 +96,16 @@ int load_sound_config(const char *config_path) {
   if (json_object_object_get_ex(root, "key_define_type", &obj))
     key_type = json_object_get_string(obj);
   g_sound_pack.is_multi = strcmp(key_type, "multi") == 0;
-  printf("Config loaded: Using %s mode\n",
-         g_sound_pack.is_multi ? "multi" : "single");
+  if (g_verbose) {
+    printf("Config loaded: Using %s mode\n",
+           g_sound_pack.is_multi ? "multi" : "single");
+  }
   if (g_sound_pack.is_multi) {
     g_sound_pack.num_generic_press_files = 0;
     if (json_object_object_get_ex(root, "sound", &obj)) {
       const char *pattern = json_object_get_string(obj);
-      printf("Sound pattern: %s\n", pattern);
+      if (g_verbose)
+        printf("Sound pattern: %s\n", pattern);
       if (strstr(pattern, "%d") || strstr(pattern, "{")) {
         for (int i = 0; i <= 4; i++) {
           char temp_filename[256];
@@ -129,8 +131,9 @@ int load_sound_config(const char *config_path) {
           if (access(g_sound_pack.generic_press_files[i], R_OK) == 0) {
             g_sound_pack.num_generic_press_files = i + 1;
           } else {
-            printf("Generic sound file not found: %s\n",
-                   g_sound_pack.generic_press_files[i]);
+            if (g_verbose)
+              printf("Generic sound file not found: %s\n",
+                     g_sound_pack.generic_press_files[i]);
             break;
           }
         }
@@ -140,12 +143,14 @@ int load_sound_config(const char *config_path) {
                       pattern);
         if (access(g_sound_pack.generic_press_files[0], R_OK) == 0) {
           g_sound_pack.num_generic_press_files = 1;
-          printf("Found single generic sound file: %s\n",
-                 g_sound_pack.generic_press_files[0]);
+          if (g_verbose)
+            printf("Found single generic sound file: %s\n",
+                   g_sound_pack.generic_press_files[0]);
         }
       }
-      printf("Total generic press sound files: %d\n",
-             g_sound_pack.num_generic_press_files);
+      if (g_verbose)
+        printf("Total generic press sound files: %d\n",
+               g_sound_pack.num_generic_press_files);
     }
     if (json_object_object_get_ex(root, "soundup", &obj)) {
       char temp_release_file[256];
@@ -155,7 +160,8 @@ int load_sound_config(const char *config_path) {
       get_full_path(g_sound_pack.release_file,
                     sizeof(g_sound_pack.release_file), config_dir,
                     temp_release_file);
-      printf("Release sound file: %s\n", g_sound_pack.release_file);
+      if (g_verbose)
+        printf("Release sound file: %s\n", g_sound_pack.release_file);
     }
     if (json_object_object_get_ex(root, "defines", &obj)) {
       json_object_object_foreach(obj, key, val) {
@@ -198,7 +204,8 @@ int load_sound_config(const char *config_path) {
       temp_sound_file[sizeof(temp_sound_file) - 1] = '\0';
       get_full_path(g_sound_pack.sound_file, sizeof(g_sound_pack.sound_file),
                     config_dir, temp_sound_file);
-      printf("Single mode sound file: %s\n", g_sound_pack.sound_file);
+      if (g_verbose)
+        printf("Single mode sound file: %s\n", g_sound_pack.sound_file);
     }
     if (json_object_object_get_ex(root, "defines", &obj)) {
       json_object_object_foreach(obj, key, val) {
@@ -416,7 +423,6 @@ void play_sound_segment(int key_code, int is_pressed) {
   if (!data)
     return;
   data->key_code = key_code;
-  data->sound_pack = &g_sound_pack;
   data->thread_id = slot;
   data->is_pressed = is_pressed;
   pthread_mutex_lock(&thread_mutex);

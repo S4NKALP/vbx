@@ -1,3 +1,4 @@
+
 #define _POSIX_C_SOURCE 200809L
 
 #include "config.h"
@@ -209,25 +210,6 @@ void cleanup_processes(int sig) {
     unlink(pidfile_path);
   }
   exit(0);
-}
-
-int check_sudo_cached() {
-  int status = system("sudo -n true 2>/dev/null");
-  return WEXITSTATUS(status) == 0;
-}
-
-int ensure_sudo_access() {
-  if (check_sudo_cached()) {
-    return 1;
-  }
-  printf("This program requires sudo access to monitor keyboard events.\n");
-  printf("Please enter your password when prompted:\n");
-  int status = system("sudo -v");
-  if (WEXITSTATUS(status) != 0) {
-    fprintf(stderr, "Error: Failed to obtain sudo access\n");
-    return 0;
-  }
-  return 1;
 }
 
 static char *get_user_config_path(char *buffer, size_t buflen) {
