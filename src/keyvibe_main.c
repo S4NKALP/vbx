@@ -51,18 +51,7 @@ void print_usage(const char *program_name) {
   printf("  -u, --unmute             Unmute sound\n");
   printf("  -h, --help               Show this help message\n");
   printf("  -v, --verbose            Enable verbose output\n");
-  printf("\nConfiguration:\n");
-  printf("  Reads ~/.keyvibe.json if present. On first run, prompts to create "
-         "it.\n");
   printf("  In daemon mode, editing ~/.keyvibe.json will auto-reload.\n");
-  printf("\nExamples:\n");
-  printf("  %s                       # Use default sound (eg-oreo)\n",
-         program_name);
-  printf("  %s -s cherrymx-blue-abs  # Use Cherry MX Blue ABS sound\n",
-         program_name);
-  printf("  %s -l                    # List all available sounds\n",
-         program_name);
-  printf("\nPress Ctrl+C to exit.\n");
 }
 
 int list_sound_packs() {
