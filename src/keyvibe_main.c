@@ -19,7 +19,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#define MAX_PATH_LENGTH 512
+#define MAX_PATH_LENGTH 1024
 #define AUDIO_BASE_DIR KeyVibe_DATA_DIR "/audio"
 #define USER_AUDIO_SUBPATH "/.local/share/keyvibe/audio"
 #define USER_CONFIG_FILENAME ".keyvibe.json"
@@ -93,7 +93,12 @@ int list_sound_packs() {
     while ((entry = readdir(dir)) != NULL) {
       if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
         continue;
-      snprintf(path, sizeof(path), "%s/%s", user_audio_dir, entry->d_name);
+      if ((size_t)snprintf(path, sizeof(path), "%s/%s", user_audio_dir,
+                           entry->d_name) >= sizeof(path)) {
+        fprintf(stderr, "Warning: Path too long, skipping: %s/%s\n",
+                user_audio_dir, entry->d_name);
+        continue;
+      }
       if (stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
         printf("  %s (user)\n", entry->d_name);
       }
@@ -107,7 +112,12 @@ int list_sound_packs() {
     while ((entry = readdir(dir)) != NULL) {
       if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
         continue;
-      snprintf(path, sizeof(path), "%s/%s", AUDIO_BASE_DIR, entry->d_name);
+      if ((size_t)snprintf(path, sizeof(path), "%s/%s", AUDIO_BASE_DIR,
+                           entry->d_name) >= sizeof(path)) {
+        fprintf(stderr, "Warning: Path too long, skipping: %s/%s\n",
+                AUDIO_BASE_DIR, entry->d_name);
+        continue;
+      }
       if (stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
         printf("  %s (system)\n", entry->d_name);
       }
@@ -136,8 +146,10 @@ static int resolve_sound_base_dir(const char *sound_name, char *out_basedir,
   get_user_audio_dir(user_audio_dir, sizeof(user_audio_dir));
   if (user_audio_dir[0]) {
     char p[MAX_PATH_LENGTH];
-    snprintf(p, sizeof(p), "%s/%s/config.json", user_audio_dir, sound_name);
-    if (access(p, R_OK) == 0) {
+    if ((size_t)snprintf(p, sizeof(p), "%s/%s/config.json", user_audio_dir,
+                         sound_name) >= sizeof(p)) {
+      // Path too long, skip user dir and try system dir
+    } else if (access(p, R_OK) == 0) {
       strncpy(out_basedir, user_audio_dir, out_sz - 1);
       out_basedir[out_sz - 1] = '\0';
       return 1;
@@ -145,7 +157,10 @@ static int resolve_sound_base_dir(const char *sound_name, char *out_basedir,
   }
   // Fallback to system dir
   char p2[MAX_PATH_LENGTH];
-  snprintf(p2, sizeof(p2), "%s/%s/config.json", AUDIO_BASE_DIR, sound_name);
+  if ((size_t)snprintf(p2, sizeof(p2), "%s/%s/config.json", AUDIO_BASE_DIR,
+                       sound_name) >= sizeof(p2)) {
+    return 0; // Path too long
+  }
   if (access(p2, R_OK) == 0) {
     strncpy(out_basedir, AUDIO_BASE_DIR, out_sz - 1);
     out_basedir[out_sz - 1] = '\0';
@@ -164,8 +179,12 @@ int validate_sound_pack(const char *sound_name) {
     return 0;
   }
   char config_path[MAX_PATH_LENGTH];
-  snprintf(config_path, sizeof(config_path), "%s/%s/config.json", basedir,
-           sound_name);
+  if ((size_t)snprintf(config_path, sizeof(config_path), "%s/%s/config.json",
+                       basedir, sound_name) >= sizeof(config_path)) {
+    fprintf(stderr, "Error: Sound pack path too long: %s/%s\n", basedir,
+            sound_name);
+    return 0;
+  }
   if (access(config_path, R_OK) != 0) {
     fprintf(stderr, "Error: Config file not found: %s\n", config_path);
     return 0;

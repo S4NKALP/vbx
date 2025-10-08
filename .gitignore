@@ -1,0 +1,53 @@
+
+# Compiled binaries
+/keyvibe
+/keyvibe-audio
+/keyvibe-input
+
+# Object and static/shared library files
+*.o
+*.lo
+*.la
+*.al
+*.a
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+
+# Debug and core dumps
+core
+core.*
+*.core
+*.dSYM/
+
+# Build artifacts
+/build/
+/dist/
+/out/
+*.obj
+*.pch
+*.pdb
+*.lib
+*.exp
+
+# Generated files
+compile_commands.json
+
+# Editor/OS files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+
