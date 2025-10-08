@@ -1,4 +1,3 @@
-
 #define _POSIX_C_SOURCE 200809L
 
 #include "config.h"
@@ -468,8 +467,17 @@ static int read_user_config(const char *path, char **out_sound,
     return 0;
   fseek(f, 0, SEEK_END);
   long sz = ftell(f);
+  if (sz < 0) {
+    fclose(f);
+    return 0;
+  }
+  errno = 0;
   rewind(f);
-  char *buf = malloc(sz + 1);
+  if (errno != 0) {
+    fclose(f);
+    return 0;
+  }
+  char *buf = malloc((size_t)sz + 1);
   if (!buf) {
     fclose(f);
     return 0;
@@ -495,7 +503,8 @@ static int read_user_config(const char *path, char **out_sound,
 }
 
 int main(int argc, char *argv[]) {
-  char *sound_name = "eg-oreo";
+  char *sound_name = "eg-oreo"; // may be replaced by strdup; track for free
+  int sound_name_owned = 0;
   int verbose = 0;
   int list_sounds = 0;
   int flag_daemon = 0;
@@ -524,7 +533,8 @@ int main(int argc, char *argv[]) {
       int cfg_volume = volume;
       if (read_user_config(user_cfg_path, &cfg_sound, &cfg_volume)) {
         if (cfg_sound) {
-          sound_name = cfg_sound;
+          sound_name = cfg_sound; // now owned, must free on exit paths
+          sound_name_owned = 1;
         }
         volume = cfg_volume;
       }
@@ -562,13 +572,22 @@ int main(int argc, char *argv[]) {
       if (!read_pidfile(pidfile_path, &running_pid) ||
           !process_is_running(running_pid)) {
         fprintf(stderr, "KeyVibe: not running.\n");
+        if (sound_name_owned) {
+          free(sound_name);
+        }
         return 1;
       }
       if (kill(running_pid, SIGHUP) != 0) {
         perror("kill");
+        if (sound_name_owned) {
+          free(sound_name);
+        }
         return 1;
       }
       printf("KeyVibe reload signal sent.\n");
+      if (sound_name_owned) {
+        free(sound_name);
+      }
       return 0;
     }
     case 1003: {
@@ -577,11 +596,17 @@ int main(int argc, char *argv[]) {
       if (!read_pidfile(pidfile_path, &running_pid) ||
           !process_is_running(running_pid)) {
         fprintf(stderr, "KeyVibe: not running.\n");
+        if (sound_name_owned) {
+          free(sound_name);
+        }
         return 1;
       }
       // Write mute state to file instead of using signals
       write_mute_state(1);
       printf("KeyVibe muted.\n");
+      if (sound_name_owned) {
+        free(sound_name);
+      }
       return 0;
     }
     case 1004: {
@@ -590,26 +615,42 @@ int main(int argc, char *argv[]) {
       if (!read_pidfile(pidfile_path, &running_pid) ||
           !process_is_running(running_pid)) {
         fprintf(stderr, "KeyVibe: not running.\n");
+        if (sound_name_owned) {
+          free(sound_name);
+        }
         return 1;
       }
       // Write mute state to file instead of using signals
       write_mute_state(0);
       printf("KeyVibe unmuted.\n");
+      if (sound_name_owned) {
+        free(sound_name);
+      }
       return 0;
     }
     case 'h':
       print_usage(argv[0]);
+      if (sound_name_owned) {
+        free(sound_name);
+      }
       return 0;
     case 'v':
       verbose = 1;
       break;
     default:
       print_usage(argv[0]);
+      if (sound_name_owned) {
+        free(sound_name);
+      }
       return 1;
     }
   }
   if (list_sounds) {
-    return list_sound_packs();
+    int rc = list_sound_packs();
+    if (sound_name_owned) {
+      free(sound_name);
+    }
+    return rc;
   }
   build_pidfile_path(pidfile_path, sizeof(pidfile_path));
   if (flag_stop) {
@@ -659,6 +700,9 @@ int main(int argc, char *argv[]) {
     }
   }
   if (!validate_sound_pack(sound_name)) {
+    if (sound_name_owned) {
+      free(sound_name);
+    }
     return 1;
   }
   char get_key_presses_path[MAX_PATH_LENGTH];
@@ -716,6 +760,9 @@ int main(int argc, char *argv[]) {
     }
   }
   if (!start_children(sound_dir, config_path, volume, verbose, current_mute)) {
+    if (sound_name_owned) {
+      free(sound_name);
+    }
     return 1;
   }
   int status;
@@ -791,6 +838,9 @@ int main(int argc, char *argv[]) {
   }
   if (!is_daemon) {
     printf("KeyVibe exited.\n");
+  }
+  if (sound_name_owned) {
+    free(sound_name);
   }
   return 0;
 }

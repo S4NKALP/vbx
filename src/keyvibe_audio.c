@@ -75,8 +75,19 @@ int load_sound_config(const char *config_path) {
   char *config_dir = dirname(config_path_copy);
   fseek(file, 0, SEEK_END);
   long size = ftell(file);
+  if (size < 0) {
+    fclose(file);
+    fprintf(stderr, "Error: ftell failed while reading %s\n", config_path);
+    return -1;
+  }
+  errno = 0;
   rewind(file);
-  char *json_string = malloc(size + 1);
+  if (errno != 0) {
+    fclose(file);
+    fprintf(stderr, "Error: rewind failed while reading %s\n", config_path);
+    return -1;
+  }
+  char *json_string = malloc((size_t)size + 1);
   if (!json_string) {
     fclose(file);
     fprintf(stderr, "Error: Memory allocation failed\n");
