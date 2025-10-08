@@ -1,7 +1,7 @@
 #ifndef __CONFIG_H__
 #define __CONFIG_H__
 
-#define PROJECT_VERSION "1.1.0"
+#define PROJECT_VERSION "0.1.0"
 #define GETTEXT_PACKAGE "keyvibe"
 #define PKEXEC_PATH "/usr/bin/pkexec"
 
@@ -18,5 +18,3 @@
 #define KeyVibe_BIN_DIR PACKAGE_PREFIX "/bin"
 
 #endif
-
-
