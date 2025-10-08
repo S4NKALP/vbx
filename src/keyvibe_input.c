@@ -1,21 +1,18 @@
-
 #include "utils.h"
 #include <errno.h>
+#include <fcntl.h>
+#include <getopt.h>
+#include <libevdev/libevdev.h>
+#include <libinput.h>
+#include <libudev.h>
+#include <poll.h>
+#include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include <fcntl.h>
-#include <getopt.h>
-#include <poll.h>
-#include <pthread.h>
 #include <unistd.h>
-
-#include <libevdev/libevdev.h>
-#include <libinput.h>
-#include <libudev.h>
 
 #include "config.h"
 
@@ -131,8 +128,15 @@ static int run_mainloop(struct libinput *libinput) {
   if (handle_events(libinput) != 0)
     return errorf("Expected device added events on startup but got none. Maybe "
                   "you don't have the right permissions?\n");
-  while (poll(&fd, 1, -1) > -1)
+  while (1) {
+    int pr = poll(&fd, 1, -1);
+    if (pr < 0) {
+      if (errno == EINTR)
+        continue;
+      return errorf("poll failed: %s\n", strerror(errno));
+    }
     handle_events(libinput);
+  }
   return 0;
 }
 
@@ -149,6 +153,7 @@ void print_help(char *program_name) {
 }
 
 int main(int argc, char *argv[]) {
+  setvbuf(stdout, NULL, _IOLBF, 0);
   const struct option long_options[] = {{"version", no_argument, 0, 'v'},
                                         {"help", no_argument, 0, 'h'},
                                         {NULL, 0, NULL, 0}};
@@ -187,7 +192,12 @@ int main(int argc, char *argv[]) {
   }
   pthread_t input_handler;
   struct input_handler_data input_handler_data = {udev, libinput};
-  pthread_create(&input_handler, NULL, handle_input, &input_handler_data);
+  if (pthread_create(&input_handler, NULL, handle_input, &input_handler_data) !=
+      0) {
+    errorf("Failed to create input handler thread.\n");
+  } else {
+    pthread_detach(input_handler);
+  }
   if (run_mainloop(libinput) < 0)
     return PERMISSION_FAILED;
   libinput_unref(libinput);
