@@ -48,7 +48,7 @@ KeyVibe listens to your keyboard events and plays high‑quality switch sounds w
 ### Arch Linux
 
 ```bash
-yay -S keyvibe-git
+paru -S keyvibe
 ```
 
 ### 🛠️ Build From Source
