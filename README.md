@@ -1,9 +1,7 @@
 <div align="center">
-  <img src="assets/logo.png" alt="Project Logo">
+  <img src="assets/logo.png" alt="Project Logo", height="200">
 
-# KeyVibe
-
-> A C-based CLI tool that brings realistic mechanical keyboard sounds to every keystroke.
+> A CLI tool that brings realistic mechanical keyboard sounds to every keystroke.
 
 KeyVibe listens to your keyboard events and plays high‑quality switch sounds with low latency. It ships with multiple sound packs and supports your own custom packs. Run it interactively or as a background daemon with live reload of your preferences.
 
@@ -92,13 +90,6 @@ Required files inside each `<pack-name>/` directory:
 - `config.json` (format matches bundled packs)
 - Audio files referenced by `config.json`
 
-Resolution order when selecting `-s <name>`:
-
-1. `~/.local/share/keyvibe/audio/<name>/`
-2. `/usr/share/keyvibe/audio/<name>/`
-
-List shows `(user)` or `(system)` source next to each pack.
-
 ## 🤝 Contributing
 
 PRs welcome. Please keep code modular and readable, and prefer small, focused changes.
@@ -106,3 +97,8 @@ PRs welcome. Please keep code modular and readable, and prefer small, focused ch
 ## 📄 License
 
 MIT — see [LICENSE](LICENSE).
+
+## 🙏 Credits
+
+- [MechVibes](https://github.com/hainguyents13/mechvibes) for sound packs
+- [showmethekey](https://github.com/AlynxZhou/showmethekey) for code
