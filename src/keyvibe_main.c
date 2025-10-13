@@ -45,7 +45,6 @@ void print_usage(const char *program_name) {
   printf("Options:\n");
   printf("  -S, --sound SOUND_NAME   Select sound pack (default: eg-oreo)\n");
   printf("  -V, --volume VOLUME      Set volume [0-100] (default: 50)\n");
-  printf("  -c, --override-config    Apply -s/-V to override loaded config\n");
   printf("  -l, --list               List available sound packs\n");
   printf("  -d, --daemon             Run in background (write PID file)\n");
   printf("  -s, --stop               Stop background daemon\n");
@@ -471,20 +470,17 @@ int main(int argc, char *argv[]) {
   int list_sounds = 0;
   int flag_daemon = 0;
   int flag_stop = 0;
-  static struct option long_options[] = {
-      {"sound", required_argument, 0, 'S'},
-      {"volume", required_argument, 0, 'V'},
-      {"override-config", no_argument, 0, 'c'},
-      {"list", no_argument, 0, 'l'},
-      {"daemon", no_argument, 0, 'd'},
-      {"stop", no_argument, 0, 's'},
-      {"mute", no_argument, 0, 'm'},
-      {"unmute", no_argument, 0, 'u'},
-      {"help", no_argument, 0, 'h'},
-      {"verbose", no_argument, 0, 'v'},
-      {0, 0, 0, 0}};
+  static struct option long_options[] = {{"sound", required_argument, 0, 'S'},
+                                         {"volume", required_argument, 0, 'V'},
+                                         {"list", no_argument, 0, 'l'},
+                                         {"daemon", no_argument, 0, 'd'},
+                                         {"stop", no_argument, 0, 's'},
+                                         {"mute", no_argument, 0, 'm'},
+                                         {"unmute", no_argument, 0, 'u'},
+                                         {"help", no_argument, 0, 'h'},
+                                         {"verbose", no_argument, 0, 'v'},
+                                         {0, 0, 0, 0}};
   int volume = 50;
-  int override_config = 0;
   char *cli_sound = NULL;
   int cli_volume = -1;
   char user_cfg_path[MAX_PATH_LENGTH];
@@ -508,7 +504,6 @@ int main(int argc, char *argv[]) {
       size_t n = e ? (size_t)(e - a) : strlen(a);
       if (!((n == 5 && strncmp(a, "sound", 5) == 0) ||
             (n == 6 && strncmp(a, "volume", 6) == 0) ||
-            (n == 16 && strncmp(a, "override-config", 16) == 0) ||
             (n == 4 && strncmp(a, "list", 4) == 0) ||
             (n == 6 && strncmp(a, "daemon", 6) == 0) ||
             (n == 4 && strncmp(a, "stop", 4) == 0) ||
@@ -522,7 +517,7 @@ int main(int argc, char *argv[]) {
     }
   }
   int opt;
-  while ((opt = getopt_long(argc, argv, "S:V:clhdsmuv", long_options, NULL)) !=
+  while ((opt = getopt_long(argc, argv, "S:V:lhdsmuv", long_options, NULL)) !=
          -1) {
     switch (opt) {
     case 'd':
@@ -570,9 +565,6 @@ int main(int argc, char *argv[]) {
         cli_volume = 0;
       if (cli_volume > 100)
         cli_volume = 100;
-      break;
-    case 'c':
-      override_config = 1;
       break;
     case 'l':
       list_sounds = 1;
@@ -622,13 +614,34 @@ int main(int argc, char *argv[]) {
     }
     return errorf("KeyVibe: process did not stop in time\n");
   }
-  if (override_config) {
-    if (cli_sound != NULL)
-      sound_name = cli_sound;
-    if (cli_volume >= 0)
-      volume = cli_volume;
+  // Apply CLI options and update config file if needed
+  int config_updated = 0;
+  if (cli_sound != NULL) {
+    if (sound_name_owned) {
+      free(sound_name);
+    }
+    sound_name = cli_sound;
+    sound_name_owned = 0; // cli_sound is not owned by us
+    config_updated = 1;
   }
-  if (get_user_config_path(user_cfg_path, sizeof(user_cfg_path))) {
+  if (cli_volume >= 0) {
+    volume = cli_volume;
+    config_updated = 1;
+  }
+
+  // Update config file if CLI options were used
+  if (config_updated &&
+      get_user_config_path(user_cfg_path, sizeof(user_cfg_path))) {
+    if (!write_user_config(user_cfg_path, sound_name, volume)) {
+      fprintf(stderr, "Warning: Failed to update config file %s\n",
+              user_cfg_path);
+    } else if (verbose) {
+      fprintf(stderr, "Updated config file %s\n", user_cfg_path);
+    }
+  }
+  // Create default config file if it doesn't exist and no CLI options were used
+  if (!config_updated &&
+      get_user_config_path(user_cfg_path, sizeof(user_cfg_path))) {
     if (access(user_cfg_path, F_OK) != 0) {
       if (!write_user_config(user_cfg_path, sound_name, volume)) {
         fprintf(stderr, "Warning: Failed to write %s\n", user_cfg_path);

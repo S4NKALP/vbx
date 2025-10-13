@@ -65,7 +65,6 @@ sudo make install
     Options:
       -S, --sound SOUND_NAME        Select sound pack (default: eg-oreo)
       -V, --volume VOLUME           Set volume [0-100] (default: 50)
-      -c --override-config          Use CLI values for this run
       -d --daemon                   Run as a background daemon
       -s --stop                     Stop the background daemon
       -m --mute                     Mute sound
