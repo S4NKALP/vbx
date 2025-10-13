@@ -1,17 +1,16 @@
 #define _POSIX_C_SOURCE 200809L
-#include "utils.h"
-#include "config.h"
-#include <pwd.h>
-#include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
+#include <signal.h>
+#include <pwd.h>
+#include <string.h>
+#include <stdlib.h>
+#include "utils.h"
+#include "config.h"
 
 int safe_snprintf(char *dst, size_t dst_sz, const char *fmt, ...) {
-  if (!dst || dst_sz == 0)
-    return 0;
+  if (!dst || dst_sz == 0) return 0;
   va_list ap;
   va_start(ap, fmt);
   int n = vsnprintf(dst, dst_sz, fmt, ap);
@@ -67,3 +66,5 @@ int process_is_running(pid_t pid) {
     return 0;
   return kill(pid, 0) == 0;
 }
+
+

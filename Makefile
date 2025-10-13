@@ -1,4 +1,3 @@
-
 CC = gcc
 CFLAGS = -Wall -Wextra -std=c99 -Iinclude
 PREFIX ?= /usr
@@ -55,7 +54,7 @@ install:
 	install -Dm755 $(SOUND_TARGET) $(DESTDIR)$(BINDIR)/$(SOUND_TARGET)
 	install -Dm755 $(KEYBOARD_TARGET) $(DESTDIR)$(BINDIR)/$(KEYBOARD_TARGET)
 	install -d $(DESTDIR)$(SHAREDIR)
-	cp -r audio $(DESTDIR)$(SHAREDIR)/
+	cp -r soundpacks $(DESTDIR)$(SHAREDIR)/
 	@echo "Installing udev rule for non-root keyboard access..."
 	@echo '# Allow non-root access to input event devices for active seat users and input group' | sudo tee $(UDEV_RULE) >/dev/null
 	@echo 'SUBSYSTEM=="input", KERNEL=="event*", TAG+="uaccess", GROUP="input", MODE="0660"' | sudo tee -a $(UDEV_RULE) >/dev/null

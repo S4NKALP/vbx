@@ -1,8 +1,6 @@
-
 #define _GNU_SOURCE
-#include "utils.h"
-#include <errno.h>
 #include <json-c/json.h>
+#include "utils.h"
 #include <libgen.h>
 #include <pthread.h>
 #include <pulse/error.h>
@@ -14,6 +12,7 @@
 #include <sys/select.h>
 #include <sys/time.h>
 #include <unistd.h>
+#include <errno.h>
 
 #define MAX_LINE_LENGTH 1024
 #define MAX_CONCURRENT_SOUNDS 10
@@ -28,11 +27,11 @@ typedef struct {
   char generic_press_files[5][256];
   int num_generic_press_files;
   char sound_file[256];
-  SoundMapping key_mappings[256];
+  SoundMapping key_mappings[512];
   struct {
     char *press;
     char *release;
-  } multi_key_mappings[256];
+  } multi_key_mappings[512];
   int is_multi;
   SF_INFO sf_info;
 } SoundPack;
@@ -43,12 +42,15 @@ typedef struct {
 } PlaybackData;
 
 SoundPack g_sound_pack = {0};
+SoundPack g_mouse_sound_pack = {0};
 float g_volume = 1.0f;
+float g_mouse_volume = 1.0f;
 int g_verbose = 0;
 int g_mute = 0;
 pthread_t sound_threads[MAX_CONCURRENT_SOUNDS];
 volatile int thread_active[MAX_CONCURRENT_SOUNDS] = {0};
 pthread_mutex_t thread_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 
 static void get_full_path(char *buffer, size_t buffer_size,
                           const char *base_dir, const char *filename) {
@@ -119,8 +121,7 @@ int load_sound_config(const char *config_path) {
     g_sound_pack.num_generic_press_files = 0;
     if (json_object_object_get_ex(root, "sound", &obj)) {
       const char *pattern = json_object_get_string(obj);
-      if (g_verbose)
-        printf("Sound pattern: %s\n", pattern);
+      if (g_verbose) printf("Sound pattern: %s\n", pattern);
       if (strstr(pattern, "%d") || strstr(pattern, "{")) {
         for (int i = 0; i <= 4; i++) {
           char temp_filename[256];
@@ -175,24 +176,35 @@ int load_sound_config(const char *config_path) {
       get_full_path(g_sound_pack.release_file,
                     sizeof(g_sound_pack.release_file), config_dir,
                     temp_release_file);
-      if (g_verbose)
-        printf("Release sound file: %s\n", g_sound_pack.release_file);
+      if (g_verbose) printf("Release sound file: %s\n", g_sound_pack.release_file);
     }
     if (json_object_object_get_ex(root, "defines", &obj)) {
       json_object_object_foreach(obj, key, val) {
         int key_code;
         int is_release = 0;
-        char *dash = strstr(key, "-up");
-        if (dash) {
-          char key_copy[16];
-          strncpy(key_copy, key, dash - key);
-          key_copy[dash - key] = '\0';
-          key_code = atoi(key_copy);
-          is_release = 1;
+        
+        // Handle mouse key names first
+        if (strcmp(key, "MouseLeft") == 0) {
+          key_code = 272;
+        } else if (strcmp(key, "MouseRight") == 0) {
+          key_code = 273;
+        } else if (strcmp(key, "MouseMiddle") == 0) {
+          key_code = 274;
         } else {
-          key_code = atoi(key);
+          // Handle regular key codes with -up suffix
+          char *dash = strstr(key, "-up");
+          if (dash) {
+            char key_copy[16];
+            strncpy(key_copy, key, dash - key);
+            key_copy[dash - key] = '\0';
+            key_code = atoi(key_copy);
+            is_release = 1;
+          } else {
+            key_code = atoi(key);
+          }
         }
-        if (key_code >= 0 && key_code < 256) {
+        
+        if (key_code >= 0 && key_code < 512) {
           const char *filename_relative = json_object_get_string(val);
           char full_filename[MAX_LINE_LENGTH];
           get_full_path(full_filename, sizeof(full_filename), config_dir,
@@ -212,26 +224,62 @@ int load_sound_config(const char *config_path) {
       }
     }
   } else {
-    if (json_object_object_get_ex(root, "sound", &obj)) {
+    // Try "sound" first, then "audio_file" for mouse configs
+    if (json_object_object_get_ex(root, "sound", &obj) ||
+        json_object_object_get_ex(root, "audio_file", &obj)) {
       char temp_sound_file[256];
       strncpy(temp_sound_file, json_object_get_string(obj),
               sizeof(temp_sound_file) - 1);
       temp_sound_file[sizeof(temp_sound_file) - 1] = '\0';
       get_full_path(g_sound_pack.sound_file, sizeof(g_sound_pack.sound_file),
                     config_dir, temp_sound_file);
-      if (g_verbose)
-        printf("Single mode sound file: %s\n", g_sound_pack.sound_file);
+      if (g_verbose) printf("Single mode sound file: %s\n", g_sound_pack.sound_file);
     }
-    if (json_object_object_get_ex(root, "defines", &obj)) {
-      json_object_object_foreach(obj, key, val) {
-        int key_code = atoi(key);
-        if (key_code >= 0 && key_code < 256 &&
-            json_object_is_type(val, json_type_array) &&
-            json_object_array_length(val) >= 2) {
-          g_sound_pack.key_mappings[key_code].start_ms =
-              json_object_get_int(json_object_array_get_idx(val, 0));
-          g_sound_pack.key_mappings[key_code].duration_ms =
-              json_object_get_int(json_object_array_get_idx(val, 1));
+    // Try "defines" first, then "definitions" for mouse configs
+    json_object *defines_obj = NULL;
+    if (json_object_object_get_ex(root, "defines", &defines_obj) ||
+        json_object_object_get_ex(root, "definitions", &defines_obj)) {
+      json_object_object_foreach(defines_obj, key, val) {
+        int key_code;
+        
+        // Handle mouse key names
+        if (strcmp(key, "MouseLeft") == 0) {
+          key_code = 272;
+        } else if (strcmp(key, "MouseRight") == 0) {
+          key_code = 273;
+        } else if (strcmp(key, "MouseMiddle") == 0) {
+          key_code = 274;
+        } else {
+          key_code = atoi(key);
+        }
+        
+        if (key_code >= 0 && key_code < 512) {
+          // Handle different config formats
+          if (json_object_is_type(val, json_type_array)) {
+            // Standard format: [start_ms, duration_ms]
+            if (json_object_array_length(val) >= 2) {
+              g_sound_pack.key_mappings[key_code].start_ms =
+                  json_object_get_int(json_object_array_get_idx(val, 0));
+              g_sound_pack.key_mappings[key_code].duration_ms =
+                  json_object_get_int(json_object_array_get_idx(val, 1));
+            }
+          } else if (json_object_is_type(val, json_type_object)) {
+            // Mouse format: {"timing": [[start1, duration1], [start2, duration2]]}
+            json_object *timing_array;
+            if (json_object_object_get_ex(val, "timing", &timing_array) &&
+                json_object_is_type(timing_array, json_type_array) &&
+                json_object_array_length(timing_array) > 0) {
+              // Use the first timing entry
+              json_object *first_timing = json_object_array_get_idx(timing_array, 0);
+              if (json_object_is_type(first_timing, json_type_array) &&
+                  json_object_array_length(first_timing) >= 2) {
+                g_sound_pack.key_mappings[key_code].start_ms =
+                    json_object_get_int(json_object_array_get_idx(first_timing, 0));
+                g_sound_pack.key_mappings[key_code].duration_ms =
+                    json_object_get_int(json_object_array_get_idx(first_timing, 1));
+              }
+            }
+          }
         }
       }
     }
@@ -274,20 +322,27 @@ void *play_sound_thread(void *arg) {
   int thread_id = data->thread_id;
   int is_pressed = data->is_pressed;
   const char *file_to_play = NULL;
+  
+  // Determine if this is a mouse event (key codes 272, 273, 274)
+  int is_mouse_event = (key_code == 272 || key_code == 273 || key_code == 274);
+  SoundPack *sound_pack = is_mouse_event ? &g_mouse_sound_pack : &g_sound_pack;
+  float volume = is_mouse_event ? g_mouse_volume : g_volume;
+  
   if (g_verbose) {
-    printf("Thread %d: Playing sound for key %d (%s)\n", thread_id, key_code,
+    printf("Thread %d: Playing %s sound for key %d (%s)\n", thread_id,
+           is_mouse_event ? "mouse" : "keyboard", key_code,
            is_pressed ? "press" : "release");
   }
-  if (g_sound_pack.is_multi) {
-    if (is_pressed && g_sound_pack.multi_key_mappings[key_code].press)
-      file_to_play = g_sound_pack.multi_key_mappings[key_code].press;
-    else if (!is_pressed && g_sound_pack.multi_key_mappings[key_code].release)
-      file_to_play = g_sound_pack.multi_key_mappings[key_code].release;
-    else if (is_pressed && g_sound_pack.num_generic_press_files > 0) {
-      int idx = rand() % g_sound_pack.num_generic_press_files;
-      file_to_play = g_sound_pack.generic_press_files[idx];
-    } else if (!is_pressed && strlen(g_sound_pack.release_file) > 0)
-      file_to_play = g_sound_pack.release_file;
+  if (sound_pack->is_multi) {
+    if (is_pressed && sound_pack->multi_key_mappings[key_code].press)
+      file_to_play = sound_pack->multi_key_mappings[key_code].press;
+    else if (!is_pressed && sound_pack->multi_key_mappings[key_code].release)
+      file_to_play = sound_pack->multi_key_mappings[key_code].release;
+    else if (is_pressed && sound_pack->num_generic_press_files > 0) {
+      int idx = rand() % sound_pack->num_generic_press_files;
+      file_to_play = sound_pack->generic_press_files[idx];
+    } else if (!is_pressed && strlen(sound_pack->release_file) > 0)
+      file_to_play = sound_pack->release_file;
     if (!file_to_play) {
       if (g_verbose) {
         printf("Thread %d: No sound file found for key %d (%s)\n", thread_id,
@@ -328,7 +383,7 @@ void *play_sound_thread(void *arg) {
     sf_count_t read;
     while ((read = sf_readf_short(sf, buffer, frames)) > 0) {
       for (sf_count_t i = 0; i < read * sf_info.channels; i++) {
-        buffer[i] = (short)(buffer[i] * g_volume);
+        buffer[i] = (short)(buffer[i] * volume);
       }
       int pa_write_error;
       if (pa_simple_write(pa_handle, buffer,
@@ -345,16 +400,16 @@ void *play_sound_thread(void *arg) {
     sf_close(sf);
     free(buffer);
   } else {
-    if (key_code >= 256 ||
-        g_sound_pack.key_mappings[key_code].duration_ms == 0) {
+    if (key_code >= 512 ||
+        sound_pack->key_mappings[key_code].duration_ms == 0) {
       if (g_verbose) {
         printf("Thread %d: No mapping for key %d\n", thread_id, key_code);
       }
       goto exit_cleanup;
     }
-    SoundMapping *mapping = &g_sound_pack.key_mappings[key_code];
-    SF_INFO sf_info = g_sound_pack.sf_info;
-    SNDFILE *sf = sf_open(g_sound_pack.sound_file, SFM_READ, &sf_info);
+    SoundMapping *mapping = &sound_pack->key_mappings[key_code];
+    SF_INFO sf_info = sound_pack->sf_info;
+    SNDFILE *sf = sf_open(sound_pack->sound_file, SFM_READ, &sf_info);
     if (!sf) {
       fprintf(stderr, "Thread: Could not open sound file\n");
       goto exit_cleanup;
@@ -384,7 +439,7 @@ void *play_sound_thread(void *arg) {
     }
     sf_count_t frames_read = sf_readf_short(sf, buffer, duration_frames);
     for (sf_count_t i = 0; i < frames_read * sf_info.channels; i++) {
-      buffer[i] = (short)(buffer[i] * g_volume);
+      buffer[i] = (short)(buffer[i] * volume);
     }
     int pa_write_error, pa_drain_error;
     pa_simple_write(pa_handle, buffer,
@@ -489,10 +544,9 @@ int parse_keyboard_event(const char *json_line, int *key_code,
 }
 
 void cleanup() {
-  if (g_verbose)
-    printf("Cleaning up...\n");
+  if (g_verbose) printf("Cleaning up...\n");
   usleep(500000);
-  for (int i = 0; i < 256; i++) {
+  for (int i = 0; i < 512; i++) {
     if (g_sound_pack.multi_key_mappings[i].press) {
       free(g_sound_pack.multi_key_mappings[i].press);
       g_sound_pack.multi_key_mappings[i].press = NULL;
@@ -515,16 +569,15 @@ static int read_mute_state() {
   if (!rd || strlen(rd) == 0) {
     rd = "/tmp";
   }
-  if (!safe_snprintf(mute_file, sizeof(mute_file), "%s/keyvibe-mute-%d", rd,
-                     (int)getuid())) {
+  if (!safe_snprintf(mute_file, sizeof(mute_file), "%s/keyvibe-mute-%d", rd, (int)getuid())) {
     return 0;
   }
-
+  
   FILE *f = fopen(mute_file, "r");
   if (!f) {
     return 0; // Default to unmuted if file doesn't exist
   }
-
+  
   int mute = 0;
   if (fscanf(f, "%d", &mute) == 1) {
     fclose(f);
@@ -534,13 +587,15 @@ static int read_mute_state() {
   return 0;
 }
 
+
 int main(int argc, char *argv[]) {
-  if (argc < 2 || argc > 5) {
-    fprintf(stderr, "Usage: %s <config.json> [volume] [verbose] [mute]\n",
-            argv[0]);
+  if (argc < 2 || argc > 7) {
+    fprintf(stderr, "Usage: %s <config.json> [volume] [verbose] [mute] [mouse_config] [mouse_volume]\n", argv[0]);
     fprintf(stderr, "  volume: 0-100 (default: 50)\n");
     fprintf(stderr, "  verbose: 1 to enable verbose output (default: 0)\n");
     fprintf(stderr, "  mute: 1 to mute sound (default: 0)\n");
+    fprintf(stderr, "  mouse_config: path to mouse config.json (optional)\n");
+    fprintf(stderr, "  mouse_volume: 0-100 for mouse volume (optional)\n");
     return 1;
   }
   if (argc >= 3) {
@@ -550,11 +605,9 @@ int main(int argc, char *argv[]) {
     if (volume_percent > 100)
       volume_percent = 100;
     g_volume = volume_percent / 100.0f;
-    if (g_verbose)
-      printf("Volume set to: %d%%\n", volume_percent);
+    if (g_verbose) printf("Volume set to: %d%%\n", volume_percent);
   } else {
-    if (g_verbose)
-      printf("Volume set to: 50%% (default)\n");
+    if (g_verbose) printf("Volume set to: 50%% (default)\n");
   }
   if (argc >= 4) {
     g_verbose = atoi(argv[3]);
@@ -568,8 +621,32 @@ int main(int argc, char *argv[]) {
       printf("Sound muted\n");
     }
   }
+  
+  // Parse mouse config and volume if provided
+  if (argc >= 6) {
+    if (load_sound_config(argv[5]) != 0) {
+      fprintf(stderr, "Failed to load mouse sound configuration\n");
+      return 1;
+    }
+    // Copy the loaded config to mouse sound pack
+    g_mouse_sound_pack = g_sound_pack;
+    if (g_verbose) {
+      printf("Mouse sound pack loaded from: %s\n", argv[5]);
+    }
+  }
+  
+  if (argc >= 7) {
+    int mouse_volume_percent = atoi(argv[6]);
+    if (mouse_volume_percent < 0)
+      mouse_volume_percent = 0;
+    if (mouse_volume_percent > 100)
+      mouse_volume_percent = 100;
+    g_mouse_volume = mouse_volume_percent / 100.0f;
+    if (g_verbose) printf("Mouse volume set to: %d%%\n", mouse_volume_percent);
+  }
+  
   if (load_sound_config(argv[1]) != 0) {
-    fprintf(stderr, "Failed to load sound configuration\n");
+    fprintf(stderr, "Failed to load keyboard sound configuration\n");
     return 1;
   }
   if (init_audio() != 0) {
@@ -583,7 +660,7 @@ int main(int argc, char *argv[]) {
   while (1) {
     // Check mute state from file periodically
     g_mute = read_mute_state();
-
+    
     FD_ZERO(&readfds);
     FD_SET(STDIN_FILENO, &readfds);
     timeout.tv_sec = 1;
@@ -605,8 +682,7 @@ int main(int argc, char *argv[]) {
     if (FD_ISSET(STDIN_FILENO, &readfds)) {
       if (fgets(line, sizeof(line), stdin) == NULL) {
         if (feof(stdin)) {
-          if (g_verbose)
-            printf("EOF reached on stdin\n");
+          if (g_verbose) printf("EOF reached on stdin\n");
         } else {
           perror("fgets");
         }
