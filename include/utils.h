@@ -17,5 +17,11 @@ int read_pidfile(const char *path, pid_t *out_pid);
 int write_pidfile(const char *path, pid_t pid);
 int process_is_running(pid_t pid);
 
+// Runtime mute helpers
+int read_runtime_mute_file(void);
+void write_runtime_mute_file(int mute);
+void write_runtime_keyboard_mute_file(int mute);
+void write_runtime_mouse_mute_file(int mute);
+
 #endif // KEYVIBE_UTILS_H
 

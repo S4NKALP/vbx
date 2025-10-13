@@ -10,13 +10,13 @@ LDFLAGS_KEYBOARD = $(shell pkg-config --libs libevdev libinput libudev) -lpthrea
 
 # Targets
 KeyVibe_TARGET = keyvibe
-SOUND_TARGET = keyvibe-audio
-KEYBOARD_TARGET = keyvibe-input
+SOUND_TARGET = audio
+KEYBOARD_TARGET = input
 
 # Sources
-KeyVibe_SOURCE = src/keyvibe_main.c src/utils.c
-SOUND_SOURCE = src/keyvibe_audio.c src/utils.c
-KEYBOARD_SOURCE = src/keyvibe_input.c src/utils.c
+KeyVibe_SOURCE = src/main.c src/utils.c src/config_io.c src/soundpacks.c
+SOUND_SOURCE = src/audio.c src/utils.c
+KEYBOARD_SOURCE = src/input.c src/utils.c
 
 # Install paths
 BINDIR = $(PREFIX)/bin

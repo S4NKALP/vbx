@@ -1,16 +1,82 @@
 #define _POSIX_C_SOURCE 200809L
+#include "utils.h"
+#include <pwd.h>
+#include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
-#include <unistd.h>
-#include <signal.h>
-#include <pwd.h>
-#include <string.h>
 #include <stdlib.h>
-#include "utils.h"
-#include "config.h"
+#include <string.h>
+#include <unistd.h>
+
+// Mute helpers moved here for re-use
+int read_runtime_mute_file() {
+  char mute_file[1024];
+  const char *rd = getenv("XDG_RUNTIME_DIR");
+  if (!rd || strlen(rd) == 0)
+    rd = "/tmp";
+  if (!safe_snprintf(mute_file, sizeof(mute_file), "%s/keyvibe-mute-%d", rd,
+                     (int)getuid()))
+    return 0;
+  FILE *f = fopen(mute_file, "r");
+  if (!f)
+    return 0;
+  int mute = 0;
+  if (fscanf(f, "%d", &mute) == 1) {
+    fclose(f);
+    return mute;
+  }
+  fclose(f);
+  return 0;
+}
+
+void write_runtime_mute_file(int mute) {
+  char mute_file[1024];
+  const char *rd = getenv("XDG_RUNTIME_DIR");
+  if (!rd || strlen(rd) == 0)
+    rd = "/tmp";
+  if (!safe_snprintf(mute_file, sizeof(mute_file), "%s/keyvibe-mute-%d", rd,
+                     (int)getuid()))
+    return;
+  FILE *f = fopen(mute_file, "w");
+  if (!f)
+    return;
+  fprintf(f, "%d\n", mute ? 1 : 0);
+  fclose(f);
+}
+
+void write_runtime_keyboard_mute_file(int mute) {
+  char mute_file[1024];
+  const char *rd = getenv("XDG_RUNTIME_DIR");
+  if (!rd || strlen(rd) == 0)
+    rd = "/tmp";
+  if (!safe_snprintf(mute_file, sizeof(mute_file), "%s/keyvibe-kbd-mute-%d", rd,
+                     (int)getuid()))
+    return;
+  FILE *f = fopen(mute_file, "w");
+  if (!f)
+    return;
+  fprintf(f, "%d\n", mute ? 1 : 0);
+  fclose(f);
+}
+
+void write_runtime_mouse_mute_file(int mute) {
+  char mute_file[1024];
+  const char *rd = getenv("XDG_RUNTIME_DIR");
+  if (!rd || strlen(rd) == 0)
+    rd = "/tmp";
+  if (!safe_snprintf(mute_file, sizeof(mute_file), "%s/keyvibe-mouse-mute-%d",
+                     rd, (int)getuid()))
+    return;
+  FILE *f = fopen(mute_file, "w");
+  if (!f)
+    return;
+  fprintf(f, "%d\n", mute ? 1 : 0);
+  fclose(f);
+}
 
 int safe_snprintf(char *dst, size_t dst_sz, const char *fmt, ...) {
-  if (!dst || dst_sz == 0) return 0;
+  if (!dst || dst_sz == 0)
+    return 0;
   va_list ap;
   va_start(ap, fmt);
   int n = vsnprintf(dst, dst_sz, fmt, ap);
@@ -66,5 +132,3 @@ int process_is_running(pid_t pid) {
     return 0;
   return kill(pid, 0) == 0;
 }
-
-
