@@ -212,6 +212,8 @@ int list_sound_packs(void) {
   printf("=====================\n\n");
   printf("KEYBOARD SOUNDS:\n");
   printf("----------------\n");
+  printf("%-25s %-12s\n", "Name", "Source");
+  printf("%-25s %-12s\n", "----", "------");
   if (user_keyboard_dir[0] && (dir = opendir(user_keyboard_dir)) != NULL) {
     while ((entry = readdir(dir)) != NULL) {
       if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
@@ -223,7 +225,7 @@ int list_sound_packs(void) {
         continue;
       }
       if (stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
-        printf("  %s (user)\n", entry->d_name);
+        printf("%-25s %-12s\n", entry->d_name, "user");
       }
     }
     closedir(dir);
@@ -240,13 +242,15 @@ int list_sound_packs(void) {
         continue;
       }
       if (stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
-        printf("  %s (preinstalled)\n", entry->d_name);
+        printf("%-25s %-12s\n", entry->d_name, "pre-installed");
       }
     }
     closedir(dir);
   }
   printf("\nMOUSE SOUNDS:\n");
   printf("-------------\n");
+  printf("%-25s %-12s\n", "Name", "Source");
+  printf("%-25s %-12s\n", "----", "------");
   if (user_mouse_dir[0] && (dir = opendir(user_mouse_dir)) != NULL) {
     while ((entry = readdir(dir)) != NULL) {
       if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
@@ -258,7 +262,7 @@ int list_sound_packs(void) {
         continue;
       }
       if (stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
-        printf("  %s (user)\n", entry->d_name);
+        printf("%-25s %-12s\n", entry->d_name, "user");
       }
     }
     closedir(dir);
@@ -275,7 +279,7 @@ int list_sound_packs(void) {
         continue;
       }
       if (stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
-        printf("  %s (pre-installed)\n", entry->d_name);
+        printf("%-25s %-12s\n", entry->d_name, "pre-installed");
       }
     }
     closedir(dir);
