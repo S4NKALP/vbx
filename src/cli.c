@@ -1,4 +1,3 @@
-
 #include "app/cli.h"
 #include "config.h"
 #include <getopt.h>
