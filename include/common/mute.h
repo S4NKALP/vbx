@@ -7,5 +7,3 @@ void write_runtime_keyboard_mute_file(int mute);
 void write_runtime_mouse_mute_file(int mute);
 
 #endif // KEYVIBE_MUTE_H
-
-

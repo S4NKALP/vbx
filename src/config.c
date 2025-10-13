@@ -1,5 +1,5 @@
-/* #include "config_io.h" */
-#include "utils.h"
+#include "common/utils.h"
+#include "user_config.h"
 #include <errno.h>
 #include <json-c/json.h>
 #include <pwd.h>

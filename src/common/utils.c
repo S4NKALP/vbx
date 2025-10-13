@@ -1,5 +1,5 @@
 #define _POSIX_C_SOURCE 200809L
-#include "utils.h"
+#include "common/utils.h"
 #include <pwd.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -8,7 +8,6 @@
 #include <string.h>
 #include <unistd.h>
 
-// Mute helpers moved here for re-use
 int read_runtime_mute_file() {
   char mute_file[1024];
   const char *rd = getenv("XDG_RUNTIME_DIR");

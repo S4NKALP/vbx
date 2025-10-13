@@ -1,5 +1,6 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -std=c99 -Iinclude
+# Updated include paths for modular headers
+CFLAGS = -Wall -Wextra -std=c99 -Iinclude -Iinclude/app -Iinclude/audio -Iinclude/common -Iinclude/sound -Iinclude/config
 PREFIX ?= /usr
 
 # Pass PACKAGE_PREFIX macro for config.h
@@ -13,10 +14,10 @@ KeyVibe_TARGET = keyvibe
 SOUND_TARGET = audio
 KEYBOARD_TARGET = input
 
-# Sources
-KeyVibe_SOURCE = src/main.c src/utils.c src/config_io.c src/soundpacks.c
-SOUND_SOURCE = src/audio.c src/utils.c
-KEYBOARD_SOURCE = src/input.c src/utils.c
+# Sources (reorganized)
+KeyVibe_SOURCE = src/main.c src/common/utils.c src/config.c src/soundpacks.c src/app/process.c src/app/watch.c src/cli.c src/app/reload.c
+SOUND_SOURCE = src/audio/main.c src/audio/config.c src/audio/playback.c src/common/utils.c
+KEYBOARD_SOURCE = src/input.c src/common/utils.c
 
 # Install paths
 BINDIR = $(PREFIX)/bin

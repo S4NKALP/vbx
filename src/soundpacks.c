@@ -1,6 +1,6 @@
-/* #include "soundpacks.h" */
+#include "soundpacks.h"
+#include "common/utils.h"
 #include "config.h"
-#include "utils.h"
 #include <dirent.h>
 #include <pwd.h>
 #include <stdio.h>

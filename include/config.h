@@ -18,5 +18,3 @@
 #define KeyVibe_BIN_DIR PACKAGE_PREFIX "/bin"
 
 #endif
-
-
