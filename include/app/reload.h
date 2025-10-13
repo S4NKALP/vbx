@@ -8,7 +8,7 @@ int handle_reload(const char *user_cfg_path,
                   char *current_mouse_config_path, char *current_mouse_sound_dir,
                   int current_mute, int current_verbose,
                   int current_mouse_volume_arg, int current_keyboard_mute,
-                  int current_mouse_mute);
+                  int current_mouse_mute, int *current_keyboard_enabled, int *current_mouse_enabled);
 
 #endif // KEYVIBE_RELOAD_H
 

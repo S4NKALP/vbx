@@ -24,4 +24,8 @@ void write_runtime_mute_file(int mute);
 void write_runtime_keyboard_mute_file(int mute);
 void write_runtime_mouse_mute_file(int mute);
 
+// Runtime enabled helpers
+int write_runtime_keyboard_enabled_file(int enabled);
+int write_runtime_mouse_enabled_file(int enabled);
+
 #endif // KEYVIBE_UTILS_H

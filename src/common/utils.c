@@ -131,3 +131,41 @@ int process_is_running(pid_t pid) {
     return 0;
   return kill(pid, 0) == 0;
 }
+
+int write_runtime_keyboard_enabled_file(int enabled) {
+  char enabled_file[1024];
+  const char *rd = getenv("XDG_RUNTIME_DIR");
+  if (!rd || strlen(rd) == 0) {
+    rd = "/tmp";
+  }
+  if (!safe_snprintf(enabled_file, sizeof(enabled_file), "%s/keyvibe-kbd-enabled-%d", rd,
+                     (int)getuid())) {
+    return 0;
+  }
+  FILE *f = fopen(enabled_file, "w");
+  if (!f) {
+    return 0;
+  }
+  fprintf(f, "%d\n", enabled);
+  fclose(f);
+  return 1;
+}
+
+int write_runtime_mouse_enabled_file(int enabled) {
+  char enabled_file[1024];
+  const char *rd = getenv("XDG_RUNTIME_DIR");
+  if (!rd || strlen(rd) == 0) {
+    rd = "/tmp";
+  }
+  if (!safe_snprintf(enabled_file, sizeof(enabled_file), "%s/keyvibe-mouse-enabled-%d", rd,
+                     (int)getuid())) {
+    return 0;
+  }
+  FILE *f = fopen(enabled_file, "w");
+  if (!f) {
+    return 0;
+  }
+  fprintf(f, "%d\n", enabled);
+  fclose(f);
+  return 1;
+}

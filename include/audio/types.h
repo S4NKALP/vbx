@@ -39,5 +39,7 @@ extern int g_verbose;
 extern int g_mute;
 extern int g_keyboard_mute;
 extern int g_mouse_mute;
+extern int g_keyboard_enabled;
+extern int g_mouse_enabled;
 
 #endif // KEYVIBE_AUDIO_TYPES_H

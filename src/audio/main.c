@@ -10,6 +10,10 @@
 #include <sys/time.h>
 #include <unistd.h>
 
+// Global variables for enabled state
+int g_keyboard_enabled = 1;
+int g_mouse_enabled = 1;
+
 int load_sound_config(const char *config_path);
 
 static int read_mute_state() {
@@ -79,6 +83,52 @@ static int read_mouse_mute_state() {
   }
   fclose(f);
   return 0;
+}
+
+static int read_keyboard_enabled_state() {
+  char enabled_file[1024];
+  const char *rd = getenv("XDG_RUNTIME_DIR");
+  if (!rd || strlen(rd) == 0) {
+    rd = "/tmp";
+  }
+  if (!safe_snprintf(enabled_file, sizeof(enabled_file), "%s/keyvibe-kbd-enabled-%d", rd,
+                     (int)getuid())) {
+    return 1; // default enabled
+  }
+  FILE *f = fopen(enabled_file, "r");
+  if (!f) {
+    return 1; // default enabled
+  }
+  int enabled = 1;
+  if (fscanf(f, "%d", &enabled) == 1) {
+    fclose(f);
+    return enabled;
+  }
+  fclose(f);
+  return 1; // default enabled
+}
+
+static int read_mouse_enabled_state() {
+  char enabled_file[1024];
+  const char *rd = getenv("XDG_RUNTIME_DIR");
+  if (!rd || strlen(rd) == 0) {
+    rd = "/tmp";
+  }
+  if (!safe_snprintf(enabled_file, sizeof(enabled_file), "%s/keyvibe-mouse-enabled-%d",
+                     rd, (int)getuid())) {
+    return 1; // default enabled
+  }
+  FILE *f = fopen(enabled_file, "r");
+  if (!f) {
+    return 1; // default enabled
+  }
+  int enabled = 1;
+  if (fscanf(f, "%d", &enabled) == 1) {
+    fclose(f);
+    return enabled;
+  }
+  fclose(f);
+  return 1; // default enabled
 }
 
 int main(int argc, char *argv[]) {
@@ -166,6 +216,10 @@ int main(int argc, char *argv[]) {
     g_mute = read_mute_state();
     g_keyboard_mute = read_keyboard_mute_state();
     g_mouse_mute = read_mouse_mute_state();
+    
+    // Check enabled state from runtime files
+    g_keyboard_enabled = read_keyboard_enabled_state();
+    g_mouse_enabled = read_mouse_enabled_state();
 
     FD_ZERO(&readfds);
     FD_SET(STDIN_FILENO, &readfds);

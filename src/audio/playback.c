@@ -212,6 +212,30 @@ void play_sound_segment(int key_code, int is_pressed) {
     }
     return;
   }
+  
+  // Check if this is a mouse event and if mouse is disabled
+  int is_mouse_event = (key_code == 272 || key_code == 273 || key_code == 274);
+  if (is_mouse_event) {
+    // For mouse events, we need to check if mouse is enabled
+    // This will be handled by the main loop passing enabled state
+    // For now, we'll add a simple check here
+    extern int g_mouse_enabled;
+    if (!g_mouse_enabled) {
+      if (g_verbose) {
+        printf("Mouse sounds disabled - ignoring mouse event %d\n", key_code);
+      }
+      return;
+    }
+  } else {
+    // For keyboard events, check if keyboard is enabled
+    extern int g_keyboard_enabled;
+    if (!g_keyboard_enabled) {
+      if (g_verbose) {
+        printf("Keyboard sounds disabled - ignoring key %d\n", key_code);
+      }
+      return;
+    }
+  }
   if (!g_sound_pack.is_multi && !is_pressed) {
     if (g_verbose) {
       printf("Single mode: Ignoring key release for key %d\n", key_code);

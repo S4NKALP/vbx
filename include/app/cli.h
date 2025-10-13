@@ -13,6 +13,8 @@ typedef struct {
   int verbose;
   int keyboard_mute; // -1 unchanged, 0 unmute, 1 mute
   int mouse_mute;    // -1 unchanged, 0 unmute, 1 mute
+  int keyboard_enabled; // -1 unchanged, 0 disabled, 1 enabled
+  int mouse_enabled;    // -1 unchanged, 0 disabled, 1 enabled
 } CliOptions;
 
 void print_usage(const char *program_name);

@@ -8,48 +8,45 @@
 void print_usage(const char *program_name) {
   printf("KeyVibe - Mechanical Keyboard Sound Simulator\n");
   printf("Version: %s\n\n", PROJECT_VERSION);
-
+  
   printf("USAGE:\n");
   printf("  %s [OPTIONS]\n\n", program_name);
-
+  
   printf("SOUND CONTROL:\n");
   printf("  -S, --sound PACK         Keyboard sound pack (default: eg-oreo)\n");
   printf("  -M, --mouse PACK         Mouse sound pack (default: ping)\n");
   printf("  -l, --list               List available sound packs\n\n");
-
+  
   printf("VOLUME CONTROL:\n");
-  printf(
-      "  -V, --volume LEVEL       Set both keyboard & mouse volume [0-100]\n");
+  printf("  -V, --volume LEVEL       Set both keyboard & mouse volume [0-100]\n");
   printf("  -K, --keyboard-volume    Set keyboard volume [0-100]\n");
   printf("  -O, --mouse-volume       Set mouse volume [0-100]\n\n");
-
+  
   printf("MUTE CONTROL:\n");
   printf("  -m, --mute[=DEVICE]      Mute sounds (keyboard|mouse|both)\n");
   printf("  -u, --unmute[=DEVICE]    Unmute sounds (keyboard|mouse|both)\n\n");
-
+  
+  printf("ENABLE/DISABLE:\n");
+  printf("  --enable[=DEVICE]        Enable sounds (keyboard|mouse|both)\n");
+  printf("  --disable[=DEVICE]       Disable sounds (keyboard|mouse|both)\n\n");
+  
   printf("DAEMON CONTROL:\n");
   printf("  -d, --daemon             Run in background\n");
   printf("  -s, --stop               Stop background daemon\n\n");
-
+  
   printf("OTHER:\n");
   printf("  -v, --verbose            Enable verbose output\n");
   printf("  -h, --help               Show this help\n\n");
-
+  
   printf("EXAMPLES:\n");
-  printf("  %s --list                                    # List sound packs\n",
-         program_name);
-  printf("  %s -S cherrymx-blue -V 75                   # Cherry MX Blue at "
-         "75%%\n",
-         program_name);
-  printf("  %s --daemon                                  # Run in background\n",
-         program_name);
-  printf("  %s --mute keyboard                          # Mute only keyboard\n",
-         program_name);
-  printf("  %s --keyboard-volume 80 --mouse-volume 60    # Different volumes\n",
-         program_name);
+  printf("  %s --list                                    # List sound packs\n", program_name);
+  printf("  %s -S cherrymx-blue -V 75                   # Cherry MX Blue at 75%%\n", program_name);
+  printf("  %s --daemon                                  # Run in background\n", program_name);
+  printf("  %s --mute keyboard                          # Mute only keyboard\n", program_name);
+  printf("  %s --disable mouse                          # Disable mouse sounds\n", program_name);
+  printf("  %s --keyboard-volume 80 --mouse-volume 60    # Different volumes\n", program_name);
   printf("\n");
-  printf("CONFIG: Settings are saved to ~/.keyvibe.json and auto-reload in "
-         "daemon mode.\n");
+  printf("CONFIG: Settings are saved to ~/.keyvibe.json and auto-reload in daemon mode.\n");
 }
 
 int parse_cli(int argc, char **argv, CliOptions *out) {
@@ -59,6 +56,8 @@ int parse_cli(int argc, char **argv, CliOptions *out) {
   out->mouse_volume = -1;
   out->keyboard_mute = -1;
   out->mouse_mute = -1;
+  out->keyboard_enabled = -1;
+  out->mouse_enabled = -1;
   static struct option long_options[] = {
       {"sound", required_argument, 0, 'S'},
       {"mouse", required_argument, 0, 'M'},
@@ -67,6 +66,8 @@ int parse_cli(int argc, char **argv, CliOptions *out) {
       {"mouse-volume", required_argument, 0, 'O'},
       {"mute", optional_argument, 0, 'm'},
       {"unmute", optional_argument, 0, 'u'},
+      {"enable", optional_argument, 0, 1000},
+      {"disable", optional_argument, 0, 1001},
       {"list", no_argument, 0, 'l'},
       {"daemon", no_argument, 0, 'd'},
       {"stop", no_argument, 0, 's'},
@@ -86,6 +87,8 @@ int parse_cli(int argc, char **argv, CliOptions *out) {
             (n == 4 && strncmp(a, "stop", 4) == 0) ||
             (n == 4 && strncmp(a, "mute", 4) == 0) ||
             (n == 6 && strncmp(a, "unmute", 6) == 0) ||
+            (n == 6 && strncmp(a, "enable", 6) == 0) ||
+            (n == 7 && strncmp(a, "disable", 7) == 0) ||
             (n == 4 && strncmp(a, "help", 4) == 0) ||
             (n == 7 && strncmp(a, "verbose", 7) == 0))) {
         fprintf(stderr, "Error: Unknown option '%s'\n", argv[i]);
@@ -156,6 +159,50 @@ int parse_cli(int argc, char **argv, CliOptions *out) {
         out->mouse_mute = 0;
       } else {
         fprintf(stderr, "Error: Invalid unmute device '%s'\n", optarg);
+        fprintf(stderr, "Use: keyboard, mouse, or both\n");
+        return 1;
+      }
+      break;
+    case 1000: // --enable
+      if (optarg == NULL) {
+        // Handle space-separated argument: --enable mouse
+        if (optind < argc && argv[optind][0] != '-') {
+          optarg = argv[optind++];
+        } else {
+          optarg = "both"; // default to both if no argument
+        }
+      }
+      if (strcmp(optarg, "both") == 0) {
+        out->keyboard_enabled = 1;
+        out->mouse_enabled = 1;
+      } else if (strcmp(optarg, "keyboard") == 0) {
+        out->keyboard_enabled = 1;
+      } else if (strcmp(optarg, "mouse") == 0) {
+        out->mouse_enabled = 1;
+      } else {
+        fprintf(stderr, "Error: Invalid enable device '%s'\n", optarg);
+        fprintf(stderr, "Use: keyboard, mouse, or both\n");
+        return 1;
+      }
+      break;
+    case 1001: // --disable
+      if (optarg == NULL) {
+        // Handle space-separated argument: --disable mouse
+        if (optind < argc && argv[optind][0] != '-') {
+          optarg = argv[optind++];
+        } else {
+          optarg = "both"; // default to both if no argument
+        }
+      }
+      if (strcmp(optarg, "both") == 0) {
+        out->keyboard_enabled = 0;
+        out->mouse_enabled = 0;
+      } else if (strcmp(optarg, "keyboard") == 0) {
+        out->keyboard_enabled = 0;
+      } else if (strcmp(optarg, "mouse") == 0) {
+        out->mouse_enabled = 0;
+      } else {
+        fprintf(stderr, "Error: Invalid disable device '%s'\n", optarg);
         fprintf(stderr, "Use: keyboard, mouse, or both\n");
         return 1;
       }

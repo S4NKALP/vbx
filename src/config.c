@@ -35,12 +35,14 @@ char *get_user_config_path(char *buffer, size_t buflen) {
 
 int write_user_config(const char *path, const char *keyboard_sound,
                       const char *mouse_sound, int keyboard_volume,
-                      int mouse_volume) {
+                      int mouse_volume, int keyboard_enabled, int mouse_enabled) {
   json_object *root = json_object_new_object();
   if (!root)
     return 0;
 
   json_object *keyboard = json_object_new_object();
+  json_object_object_add(keyboard, "enabled",
+                         json_object_new_boolean(keyboard_enabled));
   json_object_object_add(keyboard, "keyboard_sound",
                          json_object_new_string(keyboard_sound));
   json_object_object_add(keyboard, "volume",
@@ -48,6 +50,8 @@ int write_user_config(const char *path, const char *keyboard_sound,
   json_object_object_add(root, "keyboard", keyboard);
 
   json_object *mouse = json_object_new_object();
+  json_object_object_add(mouse, "enabled",
+                         json_object_new_boolean(mouse_enabled));
   json_object_object_add(mouse, "mouse_sound",
                          json_object_new_string(mouse_sound));
   json_object_object_add(mouse, "volume", json_object_new_int(mouse_volume));
@@ -68,7 +72,7 @@ int write_user_config(const char *path, const char *keyboard_sound,
 
 int read_user_config(const char *path, char **out_keyboard_sound,
                      char **out_mouse_sound, int *out_keyboard_volume,
-                     int *out_mouse_volume) {
+                     int *out_mouse_volume, int *out_keyboard_enabled, int *out_mouse_enabled) {
   FILE *f = fopen(path, "r");
   if (!f)
     return 0;
@@ -101,6 +105,16 @@ int read_user_config(const char *path, char **out_keyboard_sound,
   if (json_object_object_get_ex(root, "keyboard", &keyboard_obj) &&
       json_object_object_get_ex(root, "mouse", &mouse_obj)) {
     json_object *o;
+    if (json_object_object_get_ex(keyboard_obj, "enabled", &o)) {
+      *out_keyboard_enabled = json_object_get_boolean(o);
+    } else {
+      *out_keyboard_enabled = 1; // default enabled
+    }
+    if (json_object_object_get_ex(mouse_obj, "enabled", &o)) {
+      *out_mouse_enabled = json_object_get_boolean(o);
+    } else {
+      *out_mouse_enabled = 1; // default enabled
+    }
     if (json_object_object_get_ex(keyboard_obj, "keyboard_sound", &o)) {
       const char *s = json_object_get_string(o);
       if (s)
@@ -118,6 +132,9 @@ int read_user_config(const char *path, char **out_keyboard_sound,
       *out_mouse_volume = json_object_get_int(o);
     }
   } else {
+    // Legacy format - default to enabled
+    *out_keyboard_enabled = 1;
+    *out_mouse_enabled = 1;
     json_object *o;
     if (json_object_object_get_ex(root, "sound", &o)) {
       const char *s = json_object_get_string(o);

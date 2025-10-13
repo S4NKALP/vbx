@@ -48,6 +48,8 @@ static char current_mouse_sound_name[MAX_PATH_LENGTH] = {0};
 static int current_verbose = 0;
 static int current_keyboard_mute = 0;
 static int current_mouse_mute = 0;
+static int current_keyboard_enabled = 1;
+static int current_mouse_enabled = 1;
 static char current_config_path[MAX_PATH_LENGTH] = {0};
 static char current_sound_dir[MAX_PATH_LENGTH] = {0};
 static char current_mouse_config_path[MAX_PATH_LENGTH] = {0};
@@ -63,28 +65,8 @@ int main(int argc, char *argv[]) {
   int list_sounds = 0;
   int flag_daemon = 0;
   int flag_stop = 0;
-  static struct option long_options[] = {
-      {"sound", required_argument, 0, 'S'},
-      {"mouse", required_argument, 0, 'M'},
-      {"volume", required_argument, 0, 'V'},
-      {"keyboard-volume", required_argument, 0, 'K'},
-      {"mouse-volume", required_argument, 0, 'O'},
-      {"mute", optional_argument, 0, 'm'},
-      {"unmute", optional_argument, 0, 'u'},
-      {"list", no_argument, 0, 'l'},
-      {"daemon", no_argument, 0, 'd'},
-      {"stop", no_argument, 0, 's'},
-      {"help", no_argument, 0, 'h'},
-      {"verbose", no_argument, 0, 'v'},
-      {0, 0, 0, 0}};
   int volume = 50;
-  char *cli_sound = NULL;
-  char *cli_mouse_sound = NULL;
-  int cli_volume = -1;
-  int cli_keyboard_volume = -1;
-  int cli_mouse_volume = -1;
-  int cli_keyboard_mute = -1;
-  int cli_mouse_mute = -1;
+  CliOptions cli_opts;
   char user_cfg_path[MAX_PATH_LENGTH];
   if (get_user_config_path(user_cfg_path, sizeof(user_cfg_path))) {
     if (access(user_cfg_path, R_OK) == 0) {
@@ -92,8 +74,10 @@ int main(int argc, char *argv[]) {
       char *cfg_mouse_sound = NULL;
       int cfg_keyboard_volume = volume;
       int cfg_mouse_volume = volume;
+      int cfg_keyboard_enabled = 1;
+      int cfg_mouse_enabled = 1;
       if (read_user_config(user_cfg_path, &cfg_keyboard_sound, &cfg_mouse_sound,
-                           &cfg_keyboard_volume, &cfg_mouse_volume)) {
+                           &cfg_keyboard_volume, &cfg_mouse_volume, &cfg_keyboard_enabled, &cfg_mouse_enabled)) {
         if (cfg_keyboard_sound) {
           if (sound_name_owned) {
             free(sound_name);
@@ -109,131 +93,36 @@ int main(int argc, char *argv[]) {
           mouse_sound_name_owned = 1;
         }
         volume = cfg_keyboard_volume;
+        current_keyboard_enabled = cfg_keyboard_enabled;
+        current_mouse_enabled = cfg_mouse_enabled;
       }
     }
   }
-  for (int i = 1; i < argc; i++) {
-    if (argv[i][0] == '-' && argv[i][1] == '-') {
-      const char *a = argv[i] + 2;
-      const char *e = strchr(a, '=');
-      size_t n = e ? (size_t)(e - a) : strlen(a);
-      if (!((n == 5 && strncmp(a, "sound", 5) == 0) ||
-            (n == 5 && strncmp(a, "mouse", 5) == 0) ||
-            (n == 6 && strncmp(a, "volume", 6) == 0) ||
-            (n == 4 && strncmp(a, "list", 4) == 0) ||
-            (n == 6 && strncmp(a, "daemon", 6) == 0) ||
-            (n == 4 && strncmp(a, "stop", 4) == 0) ||
-            (n == 4 && strncmp(a, "mute", 4) == 0) ||
-            (n == 6 && strncmp(a, "unmute", 6) == 0) ||
-            (n == 4 && strncmp(a, "help", 4) == 0) ||
-            (n == 7 && strncmp(a, "verbose", 7) == 0))) {
-        fprintf(stderr, "Unknown option: %s (use full option name)\n", argv[i]);
-        return 1;
-      }
-    }
-  }
-  int opt;
-  while ((opt = getopt_long(argc, argv, "S:M:V:K:O:lhdsm::u::v", long_options,
-                            NULL)) != -1) {
-    switch (opt) {
-    case 'd':
-      flag_daemon = 1;
-      break;
-    case 's':
-      flag_stop = 1;
-      break;
-    case 'S':
-      cli_sound = optarg;
-      break;
-    case 'M':
-      cli_mouse_sound = optarg;
-      break;
-    case 'V':
-      cli_volume = atoi(optarg);
-      if (cli_volume < 0)
-        cli_volume = 0;
-      if (cli_volume > 100)
-        cli_volume = 100;
-      break;
-    case 'K':
-      cli_keyboard_volume = atoi(optarg);
-      if (cli_keyboard_volume < 0)
-        cli_keyboard_volume = 0;
-      if (cli_keyboard_volume > 100)
-        cli_keyboard_volume = 100;
-      break;
-    case 'O':
-      cli_mouse_volume = atoi(optarg);
-      if (cli_mouse_volume < 0)
-        cli_mouse_volume = 0;
-      if (cli_mouse_volume > 100)
-        cli_mouse_volume = 100;
-      break;
-    case 'm':
-      if (optarg == NULL) {
-        cli_keyboard_mute = 1;
-        cli_mouse_mute = 1;
-        current_mute = 1; // global mute
-      } else if (strcmp(optarg, "keyboard") == 0) {
-        cli_keyboard_mute = 1;
-        write_runtime_keyboard_mute_file(1);
-      } else if (strcmp(optarg, "mouse") == 0) {
-        cli_mouse_mute = 1;
-        write_runtime_mouse_mute_file(1);
-      } else if (strcmp(optarg, "both") == 0) {
-        cli_keyboard_mute = 1;
-        cli_mouse_mute = 1;
-        current_mute = 1; // global mute
-      } else {
-        fprintf(stderr,
-                "Invalid mute option: %s. Use 'keyboard', 'mouse', or 'both'\n",
-                optarg);
-        return 1;
-      }
-      break;
-    case 'u':
-      if (optarg == NULL) {
-        cli_keyboard_mute = 0;
-        cli_mouse_mute = 0;
-        current_mute = 0; // clear global mute
-      } else if (strcmp(optarg, "keyboard") == 0) {
-        cli_keyboard_mute = 0;
-        write_runtime_keyboard_mute_file(0);
-      } else if (strcmp(optarg, "mouse") == 0) {
-        cli_mouse_mute = 0;
-        write_runtime_mouse_mute_file(0);
-      } else if (strcmp(optarg, "both") == 0) {
-        cli_keyboard_mute = 0;
-        cli_mouse_mute = 0;
-        current_mute = 0; // clear global mute
-      } else {
-        fprintf(
-            stderr,
-            "Invalid unmute option: %s. Use 'keyboard', 'mouse', or 'both'\n",
-            optarg);
-        return 1;
-      }
-      break;
-    case 'l':
-      list_sounds = 1;
-      break;
-    case 'h':
-      print_usage(argv[0]);
+  
+  // Parse CLI arguments
+  int parse_result = parse_cli(argc, argv, &cli_opts);
+  if (parse_result == 1) {
       if (sound_name_owned) {
         free(sound_name);
       }
-      return 0;
-    case 'v':
-      verbose = 1;
-      break;
-    default:
-      print_usage(argv[0]);
+    if (mouse_sound_name_owned) {
+      free(mouse_sound_name);
+    }
+    return 1;
+  } else if (parse_result == 2) {
       if (sound_name_owned) {
         free(sound_name);
       }
-      return 1;
+    if (mouse_sound_name_owned) {
+      free(mouse_sound_name);
     }
+    return 0;
   }
+  
+  verbose = cli_opts.verbose;
+  list_sounds = cli_opts.list_flag;
+  flag_daemon = cli_opts.daemon_flag;
+  flag_stop = cli_opts.stop_flag;
   if (list_sounds) {
     int rc = list_sound_packs();
     if (sound_name_owned) {
@@ -264,46 +153,68 @@ int main(int argc, char *argv[]) {
   current_mute = read_runtime_mute_file();
 
   int config_updated = 0;
-  if (cli_sound != NULL) {
+  if (cli_opts.sound != NULL) {
     if (sound_name_owned) {
       free(sound_name);
     }
-    sound_name = cli_sound;
+    sound_name = cli_opts.sound;
     sound_name_owned = 0;
     config_updated = 1;
   }
-  if (cli_mouse_sound != NULL) {
+  if (cli_opts.mouse_sound != NULL) {
     if (mouse_sound_name_owned) {
       free(mouse_sound_name);
     }
-    mouse_sound_name = cli_mouse_sound;
+    mouse_sound_name = cli_opts.mouse_sound;
     mouse_sound_name_owned = 0;
     config_updated = 1;
   }
-  if (cli_volume >= 0) {
-    volume = cli_volume;
+  if (cli_opts.volume >= 0) {
+    volume = cli_opts.volume;
     config_updated = 1;
   }
-  if (cli_keyboard_volume >= 0) {
-    current_keyboard_volume = cli_keyboard_volume;
+  if (cli_opts.keyboard_volume >= 0) {
+    current_keyboard_volume = cli_opts.keyboard_volume;
     config_updated = 1;
   }
-  if (cli_mouse_volume >= 0) {
-    current_mouse_volume = cli_mouse_volume;
+  if (cli_opts.mouse_volume >= 0) {
+    current_mouse_volume = cli_opts.mouse_volume;
     config_updated = 1;
   }
-  if (cli_keyboard_mute >= 0) {
-    current_keyboard_mute = cli_keyboard_mute;
+  if (cli_opts.keyboard_mute >= 0) {
+    current_keyboard_mute = cli_opts.keyboard_mute;
     config_updated = 1;
   }
-  if (cli_mouse_mute >= 0) {
-    current_mouse_mute = cli_mouse_mute;
+  if (cli_opts.mouse_mute >= 0) {
+    current_mouse_mute = cli_opts.mouse_mute;
+    config_updated = 1;
+  }
+  if (cli_opts.keyboard_enabled >= 0) {
+    current_keyboard_enabled = cli_opts.keyboard_enabled;
+    config_updated = 1;
+  }
+  if (cli_opts.mouse_enabled >= 0) {
+    current_mouse_enabled = cli_opts.mouse_enabled;
     config_updated = 1;
   }
 
   write_runtime_mute_file(current_mute);
   write_runtime_keyboard_mute_file(current_keyboard_mute);
   write_runtime_mouse_mute_file(current_mouse_mute);
+  write_runtime_keyboard_enabled_file(current_keyboard_enabled);
+  write_runtime_mouse_enabled_file(current_mouse_enabled);
+
+  // Update config file if needed
+  if (config_updated &&
+      get_user_config_path(user_cfg_path, sizeof(user_cfg_path))) {
+    if (!write_user_config(user_cfg_path, sound_name, mouse_sound_name,
+                           current_keyboard_volume, current_mouse_volume, current_keyboard_enabled, current_mouse_enabled)) {
+      fprintf(stderr, "Warning: Failed to update config file %s\n",
+              user_cfg_path);
+    } else if (verbose) {
+      fprintf(stderr, "Updated config file %s\n", user_cfg_path);
+    }
+  }
 
   if (config_updated && !flag_daemon && !list_sounds && !flag_stop) {
     if (sound_name_owned) {
@@ -315,22 +226,11 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
-  if (config_updated &&
-      get_user_config_path(user_cfg_path, sizeof(user_cfg_path))) {
-    if (!write_user_config(user_cfg_path, sound_name, mouse_sound_name,
-                           current_keyboard_volume, current_mouse_volume)) {
-      fprintf(stderr, "Warning: Failed to update config file %s\n",
-              user_cfg_path);
-    } else if (verbose) {
-      fprintf(stderr, "Updated config file %s\n", user_cfg_path);
-    }
-  }
-
   if (!config_updated &&
       get_user_config_path(user_cfg_path, sizeof(user_cfg_path))) {
     if (access(user_cfg_path, F_OK) != 0) {
       if (!write_user_config(user_cfg_path, sound_name, mouse_sound_name,
-                             current_keyboard_volume, current_mouse_volume)) {
+                             current_keyboard_volume, current_mouse_volume, current_keyboard_enabled, current_mouse_enabled)) {
         fprintf(stderr, "Warning: Failed to write %s\n", user_cfg_path);
       } else if (verbose) {
         fprintf(stderr, "Created default config %s\n", user_cfg_path);
@@ -470,7 +370,8 @@ int main(int argc, char *argv[]) {
             &current_keyboard_volume, &current_mouse_volume,
             current_config_path, current_sound_dir, current_mouse_config_path,
             current_mouse_sound_dir, current_mute, current_verbose,
-            current_mouse_volume, current_keyboard_mute, current_mouse_mute);
+            current_mouse_volume, current_keyboard_mute, current_mouse_mute,
+            &current_keyboard_enabled, &current_mouse_enabled);
       } else {
         printf("Failed to get user config path\n");
       }
