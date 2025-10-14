@@ -87,10 +87,12 @@ void stop_children(void) {
   }
 }
 
+
 int start_children(const char *sound_dir, const char *config_path, int volume,
                    int verbose, int mute, const char *mouse_sound_dir,
                    const char *mouse_config_path, int mouse_volume,
-                   int keyboard_mute, int mouse_mute) {
+                   int keyboard_mute, int mouse_mute, int keyboard_enabled,
+                   int mouse_enabled) {
   (void)config_path;
   (void)mouse_sound_dir;
   int pipefd[2];
@@ -116,21 +118,23 @@ int start_children(const char *sound_dir, const char *config_path, int volume,
       perror("chdir");
       exit(1);
     }
-    char volume_str[32];
-    snprintf(volume_str, sizeof(volume_str), "%d", volume);
-    char mouse_volume_str[32];
-    snprintf(mouse_volume_str, sizeof(mouse_volume_str), "%d", mouse_volume);
-    char verbose_str[8];
-    snprintf(verbose_str, sizeof(verbose_str), "%d", verbose);
-    char mute_str[8];
-    snprintf(mute_str, sizeof(mute_str), "%d", mute);
-    char keyboard_mute_str[8];
-    snprintf(keyboard_mute_str, sizeof(keyboard_mute_str), "%d", keyboard_mute);
-    char mouse_mute_str[8];
-    snprintf(mouse_mute_str, sizeof(mouse_mute_str), "%d", mouse_mute);
+    char volume_str[32], mouse_volume_str[32], verbose_str[8], mute_str[8];
+    char keyboard_mute_str[8], mouse_mute_str[8];
+    char keyboard_enabled_str[8], mouse_enabled_str[8];
+    
+    int_to_str(volume_str, sizeof(volume_str), volume);
+    int_to_str(mouse_volume_str, sizeof(mouse_volume_str), mouse_volume);
+    int_to_str(verbose_str, sizeof(verbose_str), verbose);
+    int_to_str(mute_str, sizeof(mute_str), mute);
+    int_to_str(keyboard_mute_str, sizeof(keyboard_mute_str), keyboard_mute);
+    int_to_str(mouse_mute_str, sizeof(mouse_mute_str), mouse_mute);
+    int_to_str(keyboard_enabled_str, sizeof(keyboard_enabled_str), keyboard_enabled);
+    int_to_str(mouse_enabled_str, sizeof(mouse_enabled_str), mouse_enabled);
+    
     execl(sound_player_path, "keyvibe-audio", "config.json", volume_str,
           verbose_str, mute_str, mouse_config_path, mouse_volume_str,
-          keyboard_mute_str, mouse_mute_str, (char *)NULL);
+          keyboard_mute_str, mouse_mute_str, keyboard_enabled_str,
+          mouse_enabled_str, (char *)NULL);
     perror("execl keyvibe-audio");
     exit(1);
   }

@@ -1,5 +1,6 @@
 #include "app/reload.h"
 #include "app/process.h"
+#include "common/utils.h"
 #include "soundpacks.h"
 #include "user_config.h"
 #include <stdio.h>
@@ -21,13 +22,16 @@ int handle_reload(const char *user_cfg_path, char *current_sound_name,
   int cfg_keyboard_enabled = *current_keyboard_enabled;
   int cfg_mouse_enabled = *current_mouse_enabled;
   if (read_user_config(user_cfg_path, &cfg_keyboard_sound, &cfg_mouse_sound,
-                       &cfg_keyboard_volume, &cfg_mouse_volume, &cfg_keyboard_enabled, &cfg_mouse_enabled)) {
-    printf("Read config - keyboard:%s mouse:%s kvol:%d mvol:%d kenabled:%d menabled:%d\n",
+                       &cfg_keyboard_volume, &cfg_mouse_volume,
+                       &cfg_keyboard_enabled, &cfg_mouse_enabled)) {
+    printf("Read config - keyboard:%s mouse:%s kvol:%d mvol:%d kenabled:%d "
+           "menabled:%d\n",
            cfg_keyboard_sound ? cfg_keyboard_sound : "NULL",
            cfg_mouse_sound ? cfg_mouse_sound : "NULL", cfg_keyboard_volume,
            cfg_mouse_volume, cfg_keyboard_enabled, cfg_mouse_enabled);
     int keyboard_changed = 0, mouse_changed = 0, keyboard_volume_changed = 0,
-        mouse_volume_changed = 0, keyboard_enabled_changed = 0, mouse_enabled_changed = 0;
+        mouse_volume_changed = 0, keyboard_enabled_changed = 0,
+        mouse_enabled_changed = 0;
     if (cfg_keyboard_sound &&
         strcmp(current_sound_name, cfg_keyboard_sound) != 0) {
       keyboard_changed = 1;
@@ -58,11 +62,18 @@ int handle_reload(const char *user_cfg_path, char *current_sound_name,
       mouse_enabled_changed = 1;
       *current_mouse_enabled = cfg_mouse_enabled;
     }
-    printf("Config changed - keyboard:%d mouse:%d kvol:%d mvol:%d kenabled:%d menabled:%d\n",
+    printf("Config changed - keyboard:%d mouse:%d kvol:%d mvol:%d kenabled:%d "
+           "menabled:%d\n",
            keyboard_changed, mouse_changed, keyboard_volume_changed,
-           mouse_volume_changed, keyboard_enabled_changed, mouse_enabled_changed);
+           mouse_volume_changed, keyboard_enabled_changed,
+           mouse_enabled_changed);
     if (keyboard_changed || mouse_changed || keyboard_volume_changed ||
-        mouse_volume_changed || keyboard_enabled_changed || mouse_enabled_changed) {
+        mouse_volume_changed || keyboard_enabled_changed ||
+        mouse_enabled_changed) {
+      // Persist enabled state to runtime files so the audio process picks it up
+      // immediately
+      write_runtime_keyboard_enabled_file(*current_keyboard_enabled);
+      write_runtime_mouse_enabled_file(*current_mouse_enabled);
       int keyboard_valid = validate_keyboard_sound_pack(current_sound_name);
       int mouse_valid = validate_mouse_sound_pack(current_mouse_sound_name);
       if (keyboard_valid && mouse_valid) {
@@ -77,7 +88,8 @@ int handle_reload(const char *user_cfg_path, char *current_sound_name,
                            *current_keyboard_volume, current_verbose,
                            current_mute, current_mouse_sound_dir,
                            current_mouse_config_path, current_mouse_volume_arg,
-                           current_keyboard_mute, current_mouse_mute);
+                           current_keyboard_mute, current_mouse_mute,
+                           *current_keyboard_enabled, *current_mouse_enabled);
             printf("Reloaded successfully: keyboard=%s, mouse=%s, kvol=%d, "
                    "mvol=%d\n",
                    current_sound_name, current_mouse_sound_name,

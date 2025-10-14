@@ -1,12 +1,12 @@
 #include "audio/types.h"
 #include "common/utils.h"
+#include <errno.h>
 #include <json-c/json.h>
 #include <libgen.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <errno.h>
 
 SoundPack g_sound_pack = {0};
 SoundPack g_mouse_sound_pack = {0};
@@ -33,14 +33,6 @@ static void get_full_path(char *buffer, size_t buffer_size,
   }
 }
 
-static char *xstrdup(const char *s) {
-  if (!s) return NULL;
-  size_t n = strlen(s) + 1;
-  char *p = (char *)malloc(n);
-  if (!p) return NULL;
-  memcpy(p, s, n);
-  return p;
-}
 
 int load_sound_config(const char *config_path) {
   FILE *file = fopen(config_path, "r");

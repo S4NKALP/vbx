@@ -52,8 +52,8 @@ test: all
 install:
 	@echo "Installing KeyVibe to $(DESTDIR)$(BINDIR) and $(DESTDIR)$(SHAREDIR)..."
 	install -Dm755 $(KeyVibe_TARGET) $(DESTDIR)$(BINDIR)/$(KeyVibe_TARGET)
-	install -Dm755 $(SOUND_TARGET) $(DESTDIR)$(BINDIR)/$(SOUND_TARGET)
-	install -Dm755 $(KEYBOARD_TARGET) $(DESTDIR)$(BINDIR)/$(KEYBOARD_TARGET)
+	install -Dm755 $(SOUND_TARGET) $(DESTDIR)$(BINDIR)/keyvibe-audio
+	install -Dm755 $(KEYBOARD_TARGET) $(DESTDIR)$(BINDIR)/keyvibe-input
 	install -d $(DESTDIR)$(SHAREDIR)
 	cp -r soundpacks $(DESTDIR)$(SHAREDIR)/
 	@echo "Installing udev rule for non-root keyboard access..."
@@ -72,8 +72,8 @@ install:
 uninstall:
 	@echo "Uninstalling KeyVibe from $(DESTDIR)$(BINDIR) and $(DESTDIR)$(SHAREDIR)..."
 	rm -f $(DESTDIR)$(BINDIR)/$(KeyVibe_TARGET)
-	rm -f $(DESTDIR)$(BINDIR)/$(SOUND_TARGET)
-	rm -f $(DESTDIR)$(BINDIR)/$(KEYBOARD_TARGET)
+	rm -f $(DESTDIR)$(BINDIR)/keyvibe-audio
+	rm -f $(DESTDIR)$(BINDIR)/keyvibe-input
 	rm -rf $(DESTDIR)$(SHAREDIR)
 	@echo "Removing udev rule..."
 	@sudo rm -f $(UDEV_RULE) || true

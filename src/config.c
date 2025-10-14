@@ -8,16 +8,6 @@
 #include <string.h>
 #include <unistd.h>
 
-static char *xstrdup(const char *s) {
-  if (!s)
-    return NULL;
-  size_t n = strlen(s) + 1;
-  char *p = (char *)malloc(n);
-  if (!p)
-    return NULL;
-  memcpy(p, s, n);
-  return p;
-}
 
 char *get_user_config_path(char *buffer, size_t buflen) {
   const char *home = getenv("HOME");
@@ -35,7 +25,8 @@ char *get_user_config_path(char *buffer, size_t buflen) {
 
 int write_user_config(const char *path, const char *keyboard_sound,
                       const char *mouse_sound, int keyboard_volume,
-                      int mouse_volume, int keyboard_enabled, int mouse_enabled) {
+                      int mouse_volume, int keyboard_enabled,
+                      int mouse_enabled) {
   json_object *root = json_object_new_object();
   if (!root)
     return 0;
@@ -72,7 +63,8 @@ int write_user_config(const char *path, const char *keyboard_sound,
 
 int read_user_config(const char *path, char **out_keyboard_sound,
                      char **out_mouse_sound, int *out_keyboard_volume,
-                     int *out_mouse_volume, int *out_keyboard_enabled, int *out_mouse_enabled) {
+                     int *out_mouse_volume, int *out_keyboard_enabled,
+                     int *out_mouse_enabled) {
   FILE *f = fopen(path, "r");
   if (!f)
     return 0;

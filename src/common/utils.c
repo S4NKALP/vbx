@@ -28,49 +28,32 @@ int read_runtime_mute_file() {
   return 0;
 }
 
-void write_runtime_mute_file(int mute) {
-  char mute_file[1024];
+// Generic helper to write runtime state files
+static void write_runtime_state_file(const char *filename_suffix, int value) {
+  char state_file[1024];
   const char *rd = getenv("XDG_RUNTIME_DIR");
   if (!rd || strlen(rd) == 0)
     rd = "/tmp";
-  if (!safe_snprintf(mute_file, sizeof(mute_file), "%s/keyvibe-mute-%d", rd,
-                     (int)getuid()))
+  if (!safe_snprintf(state_file, sizeof(state_file), "%s/keyvibe-%s-%d", rd,
+                     filename_suffix, (int)getuid()))
     return;
-  FILE *f = fopen(mute_file, "w");
+  FILE *f = fopen(state_file, "w");
   if (!f)
     return;
-  fprintf(f, "%d\n", mute ? 1 : 0);
+  fprintf(f, "%d\n", value);
   fclose(f);
+}
+
+void write_runtime_mute_file(int mute) {
+  write_runtime_state_file("mute", mute ? 1 : 0);
 }
 
 void write_runtime_keyboard_mute_file(int mute) {
-  char mute_file[1024];
-  const char *rd = getenv("XDG_RUNTIME_DIR");
-  if (!rd || strlen(rd) == 0)
-    rd = "/tmp";
-  if (!safe_snprintf(mute_file, sizeof(mute_file), "%s/keyvibe-kbd-mute-%d", rd,
-                     (int)getuid()))
-    return;
-  FILE *f = fopen(mute_file, "w");
-  if (!f)
-    return;
-  fprintf(f, "%d\n", mute ? 1 : 0);
-  fclose(f);
+  write_runtime_state_file("kbd-mute", mute ? 1 : 0);
 }
 
 void write_runtime_mouse_mute_file(int mute) {
-  char mute_file[1024];
-  const char *rd = getenv("XDG_RUNTIME_DIR");
-  if (!rd || strlen(rd) == 0)
-    rd = "/tmp";
-  if (!safe_snprintf(mute_file, sizeof(mute_file), "%s/keyvibe-mouse-mute-%d",
-                     rd, (int)getuid()))
-    return;
-  FILE *f = fopen(mute_file, "w");
-  if (!f)
-    return;
-  fprintf(f, "%d\n", mute ? 1 : 0);
-  fclose(f);
+  write_runtime_state_file("mouse-mute", mute ? 1 : 0);
 }
 
 int safe_snprintf(char *dst, size_t dst_sz, const char *fmt, ...) {
@@ -133,39 +116,35 @@ int process_is_running(pid_t pid) {
 }
 
 int write_runtime_keyboard_enabled_file(int enabled) {
-  char enabled_file[1024];
-  const char *rd = getenv("XDG_RUNTIME_DIR");
-  if (!rd || strlen(rd) == 0) {
-    rd = "/tmp";
-  }
-  if (!safe_snprintf(enabled_file, sizeof(enabled_file), "%s/keyvibe-kbd-enabled-%d", rd,
-                     (int)getuid())) {
-    return 0;
-  }
-  FILE *f = fopen(enabled_file, "w");
-  if (!f) {
-    return 0;
-  }
-  fprintf(f, "%d\n", enabled);
-  fclose(f);
+  write_runtime_state_file("kbd-enabled", enabled);
   return 1;
 }
 
 int write_runtime_mouse_enabled_file(int enabled) {
-  char enabled_file[1024];
-  const char *rd = getenv("XDG_RUNTIME_DIR");
-  if (!rd || strlen(rd) == 0) {
-    rd = "/tmp";
-  }
-  if (!safe_snprintf(enabled_file, sizeof(enabled_file), "%s/keyvibe-mouse-enabled-%d", rd,
-                     (int)getuid())) {
-    return 0;
-  }
-  FILE *f = fopen(enabled_file, "w");
-  if (!f) {
-    return 0;
-  }
-  fprintf(f, "%d\n", enabled);
-  fclose(f);
+  write_runtime_state_file("mouse-enabled", enabled);
   return 1;
+}
+
+
+void int_to_str(char *buffer, size_t size, int value) {
+  snprintf(buffer, size, "%d", value);
+}
+
+// Safe string duplication
+char *xstrdup(const char *s) {
+  if (!s)
+    return NULL;
+  size_t n = strlen(s) + 1;
+  char *p = (char *)malloc(n);
+  if (!p)
+    return NULL;
+  memcpy(p, s, n);
+  return p;
+}
+
+// Validate and clamp volume to 0-100 range
+int validate_volume(int volume) {
+  if (volume < 0) return 0;
+  if (volume > 100) return 100;
+  return volume;
 }

@@ -7,8 +7,8 @@
 #include "common/mute.h"
 #include "common/utils.h"
 #include "config.h"
-#include "user_config.h"
 #include "soundpacks.h"
+#include "user_config.h"
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -77,7 +77,8 @@ int main(int argc, char *argv[]) {
       int cfg_keyboard_enabled = 1;
       int cfg_mouse_enabled = 1;
       if (read_user_config(user_cfg_path, &cfg_keyboard_sound, &cfg_mouse_sound,
-                           &cfg_keyboard_volume, &cfg_mouse_volume, &cfg_keyboard_enabled, &cfg_mouse_enabled)) {
+                           &cfg_keyboard_volume, &cfg_mouse_volume,
+                           &cfg_keyboard_enabled, &cfg_mouse_enabled)) {
         if (cfg_keyboard_sound) {
           if (sound_name_owned) {
             free(sound_name);
@@ -98,27 +99,26 @@ int main(int argc, char *argv[]) {
       }
     }
   }
-  
-  // Parse CLI arguments
+
   int parse_result = parse_cli(argc, argv, &cli_opts);
   if (parse_result == 1) {
-      if (sound_name_owned) {
-        free(sound_name);
-      }
+    if (sound_name_owned) {
+      free(sound_name);
+    }
     if (mouse_sound_name_owned) {
       free(mouse_sound_name);
     }
     return 1;
   } else if (parse_result == 2) {
-      if (sound_name_owned) {
-        free(sound_name);
-      }
+    if (sound_name_owned) {
+      free(sound_name);
+    }
     if (mouse_sound_name_owned) {
       free(mouse_sound_name);
     }
     return 0;
   }
-  
+
   verbose = cli_opts.verbose;
   list_sounds = cli_opts.list_flag;
   flag_daemon = cli_opts.daemon_flag;
@@ -204,11 +204,11 @@ int main(int argc, char *argv[]) {
   write_runtime_keyboard_enabled_file(current_keyboard_enabled);
   write_runtime_mouse_enabled_file(current_mouse_enabled);
 
-  // Update config file if needed
   if (config_updated &&
       get_user_config_path(user_cfg_path, sizeof(user_cfg_path))) {
     if (!write_user_config(user_cfg_path, sound_name, mouse_sound_name,
-                           current_keyboard_volume, current_mouse_volume, current_keyboard_enabled, current_mouse_enabled)) {
+                           current_keyboard_volume, current_mouse_volume,
+                           current_keyboard_enabled, current_mouse_enabled)) {
       fprintf(stderr, "Warning: Failed to update config file %s\n",
               user_cfg_path);
     } else if (verbose) {
@@ -230,7 +230,8 @@ int main(int argc, char *argv[]) {
       get_user_config_path(user_cfg_path, sizeof(user_cfg_path))) {
     if (access(user_cfg_path, F_OK) != 0) {
       if (!write_user_config(user_cfg_path, sound_name, mouse_sound_name,
-                             current_keyboard_volume, current_mouse_volume, current_keyboard_enabled, current_mouse_enabled)) {
+                             current_keyboard_volume, current_mouse_volume,
+                             current_keyboard_enabled, current_mouse_enabled)) {
         fprintf(stderr, "Warning: Failed to write %s\n", user_cfg_path);
       } else if (verbose) {
         fprintf(stderr, "Created default config %s\n", user_cfg_path);
@@ -342,7 +343,8 @@ int main(int argc, char *argv[]) {
   }
   if (!start_children(sound_dir, config_path, volume, verbose, current_mute,
                       mouse_sound_dir, mouse_config_path, current_mouse_volume,
-                      current_keyboard_mute, current_mouse_mute)) {
+                      current_keyboard_mute, current_mouse_mute,
+                      current_keyboard_enabled, current_mouse_enabled)) {
     if (sound_name_owned) {
       free(sound_name);
     }

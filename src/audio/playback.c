@@ -1,5 +1,6 @@
 #include "audio/playback.h"
 #include "audio/types.h"
+#include "common/utils.h"
 #include <json-c/json.h>
 #include <pthread.h>
 #include <pulse/error.h>
@@ -212,7 +213,7 @@ void play_sound_segment(int key_code, int is_pressed) {
     }
     return;
   }
-  
+
   // Check if this is a mouse event and if mouse is disabled
   int is_mouse_event = (key_code == 272 || key_code == 273 || key_code == 274);
   if (is_mouse_event) {
@@ -268,20 +269,10 @@ void play_sound_segment(int key_code, int is_pressed) {
   pthread_mutex_unlock(&thread_mutex);
 }
 
-static char *xstrdup2(const char *s) {
-  if (!s)
-    return NULL;
-  size_t n = strlen(s) + 1;
-  char *p = (char *)malloc(n);
-  if (!p)
-    return NULL;
-  memcpy(p, s, n);
-  return p;
-}
 
 int parse_keyboard_event(const char *json_line, int *key_code,
                          int *is_pressed) {
-  char *line_copy = xstrdup2(json_line);
+  char *line_copy = xstrdup(json_line);
   if (!line_copy)
     return -1;
   char *newline = strchr(line_copy, '\n');

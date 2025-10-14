@@ -28,4 +28,9 @@ void write_runtime_mouse_mute_file(int mute);
 int write_runtime_keyboard_enabled_file(int enabled);
 int write_runtime_mouse_enabled_file(int enabled);
 
+// Helper functions
+void int_to_str(char *buffer, size_t size, int value);
+char *xstrdup(const char *s);
+int validate_volume(int volume);
+
 #endif // KEYVIBE_UTILS_H
