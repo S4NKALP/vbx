@@ -10,12 +10,7 @@
 
 
 char *get_user_config_path(char *buffer, size_t buflen) {
-  const char *home = getenv("HOME");
-  if (!home || strlen(home) == 0) {
-    struct passwd *pw = getpwuid(getuid());
-    if (pw && pw->pw_dir)
-      home = pw->pw_dir;
-  }
+  const char *home = get_home_dir();
   if (!home)
     return NULL;
   if (!safe_snprintf(buffer, buflen, "%s/%s", home, ".keyvibe.json"))
@@ -55,7 +50,7 @@ int write_user_config(const char *path, const char *keyboard_sound,
     json_object_put(root);
     return 0;
   }
-  fprintf(f, "%s\n", json_str);
+  safe_fprintf(f, "%s\n", json_str);
   fclose(f);
   json_object_put(root);
   return 1;

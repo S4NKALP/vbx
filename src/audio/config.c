@@ -24,8 +24,7 @@ static void get_full_path(char *buffer, size_t buffer_size,
     return;
   }
   if (filename[0] == '/') {
-    strncpy(buffer, filename, buffer_size - 1);
-    buffer[buffer_size - 1] = '\0';
+    safe_strncpy(buffer, filename, buffer_size);
   } else {
     if (!safe_snprintf(buffer, buffer_size, "%s/%s", base_dir, filename)) {
       buffer[0] = '\0';
@@ -37,32 +36,31 @@ static void get_full_path(char *buffer, size_t buffer_size,
 int load_sound_config(const char *config_path) {
   FILE *file = fopen(config_path, "r");
   if (!file) {
-    fprintf(stderr, "Error: Cannot open config file: %s\n", config_path);
+    safe_fprintf(stderr, "Error: Cannot open config file: %s\n", config_path);
     perror("fopen");
     return -1;
   }
   char config_path_copy[1024];
-  strncpy(config_path_copy, config_path, sizeof(config_path_copy) - 1);
-  config_path_copy[sizeof(config_path_copy) - 1] = '\0';
+  safe_strncpy(config_path_copy, config_path, sizeof(config_path_copy));
   char *config_dir = dirname(config_path_copy);
   fseek(file, 0, SEEK_END);
   long size = ftell(file);
   if (size < 0) {
     fclose(file);
-    fprintf(stderr, "Error: ftell failed while reading %s\n", config_path);
+    safe_fprintf(stderr, "Error: ftell failed while reading %s\n", config_path);
     return -1;
   }
   errno = 0;
   rewind(file);
   if (errno != 0) {
     fclose(file);
-    fprintf(stderr, "Error: rewind failed while reading %s\n", config_path);
+    safe_fprintf(stderr, "Error: rewind failed while reading %s\n", config_path);
     return -1;
   }
   char *json_string = malloc((size_t)size + 1);
   if (!json_string) {
     fclose(file);
-    fprintf(stderr, "Error: Memory allocation failed\n");
+    safe_fprintf(stderr, "Error: Memory allocation failed\n");
     return -1;
   }
   fread(json_string, 1, size, file);
@@ -71,7 +69,7 @@ int load_sound_config(const char *config_path) {
   json_object *root = json_tokener_parse(json_string);
   free(json_string);
   if (!root) {
-    fprintf(stderr, "Error: Invalid JSON in config file\n");
+    safe_fprintf(stderr, "Error: Invalid JSON in config file\n");
     return -1;
   }
   const char *key_type = "single";
@@ -94,19 +92,18 @@ int load_sound_config(const char *config_path) {
           char temp_filename[256];
           if (strstr(pattern, "{")) {
             char temp_pattern[256];
-            strncpy(temp_pattern, pattern, sizeof(temp_pattern) - 1);
-            temp_pattern[sizeof(temp_pattern) - 1] = '\0';
+            safe_strncpy(temp_pattern, pattern, sizeof(temp_pattern));
             char *brace_start = strstr(temp_pattern, "{");
             char *brace_end = strstr(temp_pattern, "}");
             if (brace_start && brace_end) {
               *brace_start = '%';
               *(brace_start + 1) = 'd';
-              memmove(brace_start + 2, brace_end + 1,
+              safe_memmove(brace_start + 2, brace_end + 1,
                       strlen(brace_end + 1) + 1);
             }
-            snprintf(temp_filename, sizeof(temp_filename), temp_pattern, i);
+            safe_snprintf_wrapper(temp_filename, sizeof(temp_filename), temp_pattern, i);
           } else {
-            snprintf(temp_filename, sizeof(temp_filename), pattern, i);
+            safe_snprintf_wrapper(temp_filename, sizeof(temp_filename), pattern, i);
           }
           get_full_path(g_sound_pack.generic_press_files[i],
                         sizeof(g_sound_pack.generic_press_files[i]), config_dir,
@@ -137,9 +134,8 @@ int load_sound_config(const char *config_path) {
     }
     if (json_object_object_get_ex(root, "soundup", &obj)) {
       char temp_release_file[256];
-      strncpy(temp_release_file, json_object_get_string(obj),
-              sizeof(temp_release_file) - 1);
-      temp_release_file[sizeof(temp_release_file) - 1] = '\0';
+      safe_strncpy(temp_release_file, json_object_get_string(obj),
+              sizeof(temp_release_file));
       get_full_path(g_sound_pack.release_file,
                     sizeof(g_sound_pack.release_file), config_dir,
                     temp_release_file);
@@ -160,7 +156,7 @@ int load_sound_config(const char *config_path) {
           char *dash = strstr(key, "-up");
           if (dash) {
             char key_copy[16];
-            strncpy(key_copy, key, dash - key);
+            safe_strncpy(key_copy, key, dash - key + 1);
             key_copy[dash - key] = '\0';
             key_code = atoi(key_copy);
             is_release = 1;
@@ -191,9 +187,8 @@ int load_sound_config(const char *config_path) {
     if (json_object_object_get_ex(root, "sound", &obj) ||
         json_object_object_get_ex(root, "audio_file", &obj)) {
       char temp_sound_file[256];
-      strncpy(temp_sound_file, json_object_get_string(obj),
-              sizeof(temp_sound_file) - 1);
-      temp_sound_file[sizeof(temp_sound_file) - 1] = '\0';
+      safe_strncpy(temp_sound_file, json_object_get_string(obj),
+              sizeof(temp_sound_file));
       get_full_path(g_sound_pack.sound_file, sizeof(g_sound_pack.sound_file),
                     config_dir, temp_sound_file);
       if (g_verbose)

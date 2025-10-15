@@ -17,8 +17,8 @@ static int parse_device_argument(const char *optarg, const char *action,
   } else if (strcmp(optarg, "mouse") == 0) {
     *mouse_value = value;
   } else {
-    fprintf(stderr, "Error: Invalid %s device '%s'\n", action, optarg);
-    fprintf(stderr, "Use: keyboard, mouse, or both\n");
+    safe_fprintf(stderr, "Error: Invalid %s device '%s'\n", action, optarg);
+    safe_fprintf(stderr, "Use: keyboard, mouse, or both\n");
     return 1;
   }
   return 0;
@@ -84,7 +84,7 @@ void print_usage(const char *program_name) {
 }
 
 int parse_cli(int argc, char **argv, CliOptions *out) {
-  memset(out, 0, sizeof(*out));
+  safe_memset(out, 0, sizeof(*out));
   out->volume = -1;
   out->keyboard_volume = -1;
   out->mouse_volume = -1;
@@ -125,8 +125,8 @@ int parse_cli(int argc, char **argv, CliOptions *out) {
             (n == 7 && strncmp(a, "disable", 7) == 0) ||
             (n == 4 && strncmp(a, "help", 4) == 0) ||
             (n == 7 && strncmp(a, "verbose", 7) == 0))) {
-        fprintf(stderr, "Error: Unknown option '%s'\n", argv[i]);
-        fprintf(stderr, "Use '%s --help' for available options.\n", argv[0]);
+        safe_fprintf(stderr, "Error: Unknown option '%s'\n", argv[i]);
+        safe_fprintf(stderr, "Use '%s --help' for available options.\n", argv[0]);
         return 1;
       }
     }

@@ -128,25 +128,54 @@ int main(int argc, char *argv[]) {
     if (sound_name_owned) {
       free(sound_name);
     }
+    if (mouse_sound_name_owned) {
+      free(mouse_sound_name);
+    }
     return rc;
   }
   build_pidfile_path(pidfile_path, 1024);
   if (flag_stop) {
     pid_t running_pid = 0;
-    if (!require_running_pid(&running_pid))
+    if (!require_running_pid(&running_pid)) {
+      if (sound_name_owned) {
+        free(sound_name);
+      }
+      if (mouse_sound_name_owned) {
+        free(mouse_sound_name);
+      }
       return 1;
-    if (kill(running_pid, SIGTERM) != 0)
+    }
+    if (kill(running_pid, SIGTERM) != 0) {
+      if (sound_name_owned) {
+        free(sound_name);
+      }
+      if (mouse_sound_name_owned) {
+        free(mouse_sound_name);
+      }
       return (perror("kill"), 1);
+    }
     for (int i = 0; i < 30; i++) {
       if (!process_is_running(running_pid)) {
         unlink(pidfile_path);
         printf("KeyVibe stopped.\n");
+        if (sound_name_owned) {
+          free(sound_name);
+        }
+        if (mouse_sound_name_owned) {
+          free(mouse_sound_name);
+        }
         return 0;
       }
       struct timespec ts;
       ts.tv_sec = 0;
       ts.tv_nsec = 100000000L;
       nanosleep(&ts, NULL);
+    }
+    if (sound_name_owned) {
+      free(sound_name);
+    }
+    if (mouse_sound_name_owned) {
+      free(mouse_sound_name);
     }
     return errorf("KeyVibe: process did not stop in time\n");
   }
@@ -209,10 +238,10 @@ int main(int argc, char *argv[]) {
     if (!write_user_config(user_cfg_path, sound_name, mouse_sound_name,
                            current_keyboard_volume, current_mouse_volume,
                            current_keyboard_enabled, current_mouse_enabled)) {
-      fprintf(stderr, "Warning: Failed to update config file %s\n",
+      safe_fprintf(stderr, "Warning: Failed to update config file %s\n",
               user_cfg_path);
     } else if (verbose) {
-      fprintf(stderr, "Updated config file %s\n", user_cfg_path);
+      safe_fprintf(stderr, "Updated config file %s\n", user_cfg_path);
     }
   }
 
@@ -232,9 +261,9 @@ int main(int argc, char *argv[]) {
       if (!write_user_config(user_cfg_path, sound_name, mouse_sound_name,
                              current_keyboard_volume, current_mouse_volume,
                              current_keyboard_enabled, current_mouse_enabled)) {
-        fprintf(stderr, "Warning: Failed to write %s\n", user_cfg_path);
+        safe_fprintf(stderr, "Warning: Failed to write %s\n", user_cfg_path);
       } else if (verbose) {
-        fprintf(stderr, "Created default config %s\n", user_cfg_path);
+        safe_fprintf(stderr, "Created default config %s\n", user_cfg_path);
       }
     }
   }
@@ -258,20 +287,33 @@ int main(int argc, char *argv[]) {
   }
   char get_key_presses_path[MAX_PATH_LENGTH];
   char sound_player_path[MAX_PATH_LENGTH];
-  snprintf(get_key_presses_path, sizeof(get_key_presses_path),
+  safe_snprintf_wrapper(get_key_presses_path, sizeof(get_key_presses_path),
            "%s/keyvibe-input", KeyVibe_BIN_DIR);
-  snprintf(sound_player_path, sizeof(sound_player_path), "%s/keyvibe-audio",
+  safe_snprintf_wrapper(sound_player_path, sizeof(sound_player_path), "%s/keyvibe-audio",
            KeyVibe_BIN_DIR);
   if (access(get_key_presses_path, X_OK) != 0 ||
-      access(sound_player_path, X_OK) != 0)
+      access(sound_player_path, X_OK) != 0) {
+    if (sound_name_owned) {
+      free(sound_name);
+    }
+    if (mouse_sound_name_owned) {
+      free(mouse_sound_name);
+    }
     return errorf("Error: Cannot find or execute required binaries in %s\n",
                   KeyVibe_BIN_DIR);
+  }
   signal(SIGINT, cleanup_processes);
   signal(SIGTERM, cleanup_processes);
   if (flag_daemon) {
     pid_t existing = 0;
     if (read_pidfile(pidfile_path, &existing) && process_is_running(existing)) {
-      fprintf(stderr,
+      if (sound_name_owned) {
+        free(sound_name);
+      }
+      if (mouse_sound_name_owned) {
+        free(mouse_sound_name);
+      }
+      safe_fprintf(stderr,
               "KeyVibe already running (pid %ld). Use --stop to stop it.\n",
               (long)existing);
       return 1;
@@ -309,21 +351,12 @@ int main(int argc, char *argv[]) {
   current_keyboard_volume = volume;
   current_mouse_volume = volume;
   current_verbose = verbose;
-  strncpy(current_sound_name, sound_name, sizeof(current_sound_name) - 1);
-  current_sound_name[sizeof(current_sound_name) - 1] = '\0';
-  strncpy(current_mouse_sound_name, mouse_sound_name,
-          sizeof(current_mouse_sound_name) - 1);
-  current_mouse_sound_name[sizeof(current_mouse_sound_name) - 1] = '\0';
-  strncpy(current_config_path, config_path, sizeof(current_config_path) - 1);
-  current_config_path[sizeof(current_config_path) - 1] = '\0';
-  strncpy(current_sound_dir, sound_dir, sizeof(current_sound_dir) - 1);
-  current_sound_dir[sizeof(current_sound_dir) - 1] = '\0';
-  strncpy(current_mouse_config_path, mouse_config_path,
-          sizeof(current_mouse_config_path) - 1);
-  current_mouse_config_path[sizeof(current_mouse_config_path) - 1] = '\0';
-  strncpy(current_mouse_sound_dir, mouse_sound_dir,
-          sizeof(current_mouse_sound_dir) - 1);
-  current_mouse_sound_dir[sizeof(current_mouse_sound_dir) - 1] = '\0';
+  safe_strncpy(current_sound_name, sound_name, sizeof(current_sound_name));
+  safe_strncpy(current_mouse_sound_name, mouse_sound_name, sizeof(current_mouse_sound_name));
+  safe_strncpy(current_config_path, config_path, sizeof(current_config_path));
+  safe_strncpy(current_sound_dir, sound_dir, sizeof(current_sound_dir));
+  safe_strncpy(current_mouse_config_path, mouse_config_path, sizeof(current_mouse_config_path));
+  safe_strncpy(current_mouse_sound_dir, mouse_sound_dir, sizeof(current_mouse_sound_dir));
   if (verbose && !is_daemon) {
     printf("KeyVibe starting...\n");
     printf("Keyboard sound pack: %s\n", sound_name);
@@ -347,6 +380,9 @@ int main(int argc, char *argv[]) {
                       current_keyboard_enabled, current_mouse_enabled)) {
     if (sound_name_owned) {
       free(sound_name);
+    }
+    if (mouse_sound_name_owned) {
+      free(mouse_sound_name);
     }
     return 1;
   }

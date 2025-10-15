@@ -18,26 +18,16 @@
 
 static void get_user_keyboard_audio_dir(char *buffer, size_t buflen) {
   buffer[0] = '\0';
-  const char *home = getenv("HOME");
-  if (!home || strlen(home) == 0) {
-    struct passwd *pw = getpwuid(getuid());
-    if (pw && pw->pw_dir)
-      home = pw->pw_dir;
-  }
+  const char *home = get_home_dir();
   if (home)
-    snprintf(buffer, buflen, "%s%s", home, USER_KEYBOARD_AUDIO_SUBPATH);
+    safe_snprintf_wrapper(buffer, buflen, "%s%s", home, USER_KEYBOARD_AUDIO_SUBPATH);
 }
 
 static void get_user_mouse_audio_dir(char *buffer, size_t buflen) {
   buffer[0] = '\0';
-  const char *home = getenv("HOME");
-  if (!home || strlen(home) == 0) {
-    struct passwd *pw = getpwuid(getuid());
-    if (pw && pw->pw_dir)
-      home = pw->pw_dir;
-  }
+  const char *home = get_home_dir();
   if (home)
-    snprintf(buffer, buflen, "%s%s", home, USER_MOUSE_AUDIO_SUBPATH);
+    safe_snprintf_wrapper(buffer, buflen, "%s%s", home, USER_MOUSE_AUDIO_SUBPATH);
 }
 
 int resolve_keyboard_sound_base_dir(const char *sound_name, char *out_basedir,
@@ -49,8 +39,7 @@ int resolve_keyboard_sound_base_dir(const char *sound_name, char *out_basedir,
     if ((size_t)snprintf(p, sizeof(p), "%s/%s/config.json", user_audio_dir,
                          sound_name) < sizeof(p) &&
         access(p, R_OK) == 0) {
-      strncpy(out_basedir, user_audio_dir, out_sz - 1);
-      out_basedir[out_sz - 1] = '\0';
+    safe_strncpy(out_basedir, user_audio_dir, out_sz);
       return 1;
     }
   }
@@ -60,8 +49,7 @@ int resolve_keyboard_sound_base_dir(const char *sound_name, char *out_basedir,
     return 0;
   }
   if (access(p2, R_OK) == 0) {
-    strncpy(out_basedir, KEYBOARD_AUDIO_DIR, out_sz - 1);
-    out_basedir[out_sz - 1] = '\0';
+    safe_strncpy(out_basedir, KEYBOARD_AUDIO_DIR, out_sz);
     return 1;
   }
   return 0;
@@ -76,8 +64,7 @@ int resolve_mouse_sound_base_dir(const char *sound_name, char *out_basedir,
     if ((size_t)snprintf(p, sizeof(p), "%s/%s/config.json", user_audio_dir,
                          sound_name) < sizeof(p) &&
         access(p, R_OK) == 0) {
-      strncpy(out_basedir, user_audio_dir, out_sz - 1);
-      out_basedir[out_sz - 1] = '\0';
+    safe_strncpy(out_basedir, user_audio_dir, out_sz);
       return 1;
     }
   }
@@ -87,8 +74,7 @@ int resolve_mouse_sound_base_dir(const char *sound_name, char *out_basedir,
     return 0;
   }
   if (access(p2, R_OK) == 0) {
-    strncpy(out_basedir, MOUSE_AUDIO_DIR, out_sz - 1);
-    out_basedir[out_sz - 1] = '\0';
+    safe_strncpy(out_basedir, MOUSE_AUDIO_DIR, out_sz);
     return 1;
   }
   return 0;

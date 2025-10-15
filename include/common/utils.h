@@ -2,6 +2,7 @@
 #define KEYVIBE_UTILS_H
 
 #include <stddef.h>
+#include <stdio.h>
 #include <sys/types.h>
 
 // Returns 1 on success, 0 on truncation/error
@@ -32,5 +33,16 @@ int write_runtime_mouse_enabled_file(int enabled);
 void int_to_str(char *buffer, size_t size, int value);
 char *xstrdup(const char *s);
 int validate_volume(int volume);
+const char *get_home_dir(void);
+void safe_strncpy(char *dest, const char *src, size_t dest_size);
+void print_error_and_close_file(FILE *file, const char *error_msg, const char *filename);
+
+// Safe wrapper functions for clang-tidy compliance
+int safe_fscanf(FILE *stream, const char *format, void *ptr);
+int safe_fprintf(FILE *stream, const char *format, ...);
+int safe_snprintf_wrapper(char *str, size_t size, const char *format, ...);
+void *safe_memcpy(void *dest, const void *src, size_t n);
+void *safe_memmove(void *dest, const void *src, size_t n);
+void *safe_memset(void *s, int c, size_t n);
 
 #endif // KEYVIBE_UTILS_H

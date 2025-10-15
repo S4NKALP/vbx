@@ -1,4 +1,5 @@
 #include "app/watch.h"
+#include "common/utils.h"
 #include "app/process.h"
 #include <errno.h>
 #include <pthread.h>
@@ -53,8 +54,7 @@ static void *inotify_thread_fn(void *arg) {
 int start_config_watcher(const char *path) {
   static pthread_t inotify_thread;
   static struct inotify_thread_args in_args;
-  strncpy(in_args.path, path, sizeof(in_args.path) - 1);
-  in_args.path[sizeof(in_args.path) - 1] = '\0';
+  safe_strncpy(in_args.path, path, sizeof(in_args.path));
   if (access(in_args.path, F_OK) == 0) {
     pthread_create(&inotify_thread, NULL, inotify_thread_fn, &in_args);
     pthread_detach(inotify_thread);

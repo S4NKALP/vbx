@@ -31,7 +31,7 @@ static int read_runtime_state(const char *filename_suffix, int default_value) {
     return default_value;
   }
   int state = default_value;
-  if (fscanf(f, "%d", &state) == 1) {
+  if (safe_fscanf(f, "%d", &state) == 1) {
     fclose(f);
     return state;
   }
@@ -61,21 +61,21 @@ static int read_mouse_enabled_state() {
 
 int main(int argc, char *argv[]) {
   if (argc < 2 || argc > 11) {
-    fprintf(stderr,
+    safe_fprintf(stderr,
             "Usage: %s <config.json> [volume] [verbose] [mute] [mouse_config] "
             "[mouse_volume] [keyboard_mute] [mouse_mute] [keyboard_enabled] "
             "[mouse_enabled]\n",
             argv[0]);
-    fprintf(stderr, "  volume: 0-100 (default: 50)\n");
-    fprintf(stderr, "  verbose: 1 to enable verbose output (default: 0)\n");
-    fprintf(stderr, "  mute: 1 to mute all sound (default: 0)\n");
-    fprintf(stderr, "  mouse_config: path to mouse config.json (optional)\n");
-    fprintf(stderr, "  mouse_volume: 0-100 for mouse volume (optional)\n");
-    fprintf(stderr, "  keyboard_mute: 1 to mute keyboard sounds (optional)\n");
-    fprintf(stderr, "  mouse_mute: 1 to mute mouse sounds (optional)\n");
-    fprintf(stderr,
+    safe_fprintf(stderr, "  volume: 0-100 (default: 50)\n");
+    safe_fprintf(stderr, "  verbose: 1 to enable verbose output (default: 0)\n");
+    safe_fprintf(stderr, "  mute: 1 to mute all sound (default: 0)\n");
+    safe_fprintf(stderr, "  mouse_config: path to mouse config.json (optional)\n");
+    safe_fprintf(stderr, "  mouse_volume: 0-100 for mouse volume (optional)\n");
+    safe_fprintf(stderr, "  keyboard_mute: 1 to mute keyboard sounds (optional)\n");
+    safe_fprintf(stderr, "  mouse_mute: 1 to mute mouse sounds (optional)\n");
+    safe_fprintf(stderr,
             "  keyboard_enabled: 1 to enable keyboard sounds (optional)\n");
-    fprintf(stderr, "  mouse_enabled: 1 to enable mouse sounds (optional)\n");
+    safe_fprintf(stderr, "  mouse_enabled: 1 to enable mouse sounds (optional)\n");
     return 1;
   }
   if (argc >= 3) {
@@ -101,7 +101,7 @@ int main(int argc, char *argv[]) {
   }
   if (argc >= 6) {
     if (load_sound_config(argv[5]) != 0) {
-      fprintf(stderr, "Failed to load mouse sound configuration\n");
+      safe_fprintf(stderr, "Failed to load mouse sound configuration\n");
       return 1;
     }
     g_mouse_sound_pack = g_sound_pack;
@@ -136,11 +136,11 @@ int main(int argc, char *argv[]) {
       printf("Mouse enabled: %s\n", g_mouse_enabled ? "yes" : "no");
   }
   if (load_sound_config(argv[1]) != 0) {
-    fprintf(stderr, "Failed to load keyboard sound configuration\n");
+    safe_fprintf(stderr, "Failed to load keyboard sound configuration\n");
     return 1;
   }
   if (init_audio() != 0) {
-    fprintf(stderr, "Failed to initialize audio\n");
+    safe_fprintf(stderr, "Failed to initialize audio\n");
     return 1;
   }
   fd_set readfds;

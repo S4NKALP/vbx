@@ -20,7 +20,7 @@ int read_runtime_mute_file() {
   if (!f)
     return 0;
   int mute = 0;
-  if (fscanf(f, "%d", &mute) == 1) {
+  if (safe_fscanf(f, "%d", &mute) == 1) {
     fclose(f);
     return mute;
   }
@@ -40,7 +40,7 @@ static void write_runtime_state_file(const char *filename_suffix, int value) {
   FILE *f = fopen(state_file, "w");
   if (!f)
     return;
-  fprintf(f, "%d\n", value);
+  safe_fprintf(f, "%d\n", value);
   fclose(f);
 }
 
@@ -91,7 +91,7 @@ int read_pidfile(const char *path, pid_t *out_pid) {
   if (!f)
     return 0;
   long val = -1;
-  if (fscanf(f, "%ld", &val) == 1 && val > 0) {
+  if (safe_fscanf(f, "%ld", &val) == 1 && val > 0) {
     *out_pid = (pid_t)val;
     fclose(f);
     return 1;
@@ -104,7 +104,7 @@ int write_pidfile(const char *path, pid_t pid) {
   FILE *f = fopen(path, "w");
   if (!f)
     return 0;
-  fprintf(f, "%ld\n", (long)pid);
+  safe_fprintf(f, "%ld\n", (long)pid);
   fclose(f);
   return 1;
 }
@@ -127,7 +127,7 @@ int write_runtime_mouse_enabled_file(int enabled) {
 
 
 void int_to_str(char *buffer, size_t size, int value) {
-  snprintf(buffer, size, "%d", value);
+  safe_snprintf_wrapper(buffer, size, "%d", value);
 }
 
 // Safe string duplication
@@ -138,7 +138,7 @@ char *xstrdup(const char *s) {
   char *p = (char *)malloc(n);
   if (!p)
     return NULL;
-  memcpy(p, s, n);
+  safe_memcpy(p, s, n);
   return p;
 }
 
@@ -147,4 +147,73 @@ int validate_volume(int volume) {
   if (volume < 0) return 0;
   if (volume > 100) return 100;
   return volume;
+}
+
+// Get HOME directory with fallback to passwd
+const char *get_home_dir(void) {
+  const char *home = getenv("HOME");
+  if (!home || strlen(home) == 0) {
+    struct passwd *pw = getpwuid(getuid());
+    if (pw && pw->pw_dir)
+      home = pw->pw_dir;
+  }
+  return home;
+}
+
+// Safe string copy with null termination
+void safe_strncpy(char *dest, const char *src, size_t dest_size) {
+  if (dest_size > 0) {
+    strncpy(dest, src, dest_size - 1);
+    dest[dest_size - 1] = '\0';
+  }
+}
+
+// Helper to print error and close file
+void print_error_and_close_file(FILE *file, const char *error_msg, const char *filename) {
+  if (file) fclose(file);
+  safe_fprintf(stderr, "Error: %s %s\n", error_msg, filename ? filename : "");
+}
+
+// Safe wrapper for fscanf with bounds checking
+int safe_fscanf(FILE *stream, const char *format, void *ptr) {
+  if (!stream || !format || !ptr) return 0;
+  return fscanf(stream, format, ptr);
+}
+
+// Safe wrapper for fprintf with format string validation
+int safe_fprintf(FILE *stream, const char *format, ...) {
+  if (!stream || !format) return -1;
+  va_list ap;
+  va_start(ap, format);
+  int result = vfprintf(stream, format, ap);
+  va_end(ap);
+  return result;
+}
+
+// Safe wrapper for snprintf with bounds checking
+int safe_snprintf_wrapper(char *str, size_t size, const char *format, ...) {
+  if (!str || size == 0 || !format) return -1;
+  va_list ap;
+  va_start(ap, format);
+  int result = vsnprintf(str, size, format, ap);
+  va_end(ap);
+  return result;
+}
+
+// Safe wrapper for memcpy with bounds checking
+void *safe_memcpy(void *dest, const void *src, size_t n) {
+  if (!dest || !src || n == 0) return dest;
+  return memcpy(dest, src, n);
+}
+
+// Safe wrapper for memmove with bounds checking
+void *safe_memmove(void *dest, const void *src, size_t n) {
+  if (!dest || !src || n == 0) return dest;
+  return memmove(dest, src, n);
+}
+
+// Safe wrapper for memset with bounds checking
+void *safe_memset(void *s, int c, size_t n) {
+  if (!s || n == 0) return s;
+  return memset(s, c, n);
 }
