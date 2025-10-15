@@ -1,3 +1,4 @@
+
 CC = gcc
 # Updated include paths for modular headers
 CFLAGS = -Wall -Wextra -std=c99 -Iinclude -Iinclude/app -Iinclude/audio -Iinclude/common -Iinclude/sound -Iinclude/config
@@ -10,12 +11,12 @@ LDFLAGS_SOUND = -ljson-c -lpulse -lpulse-simple -lsndfile -lpthread
 LDFLAGS_KEYBOARD = $(shell pkg-config --libs libevdev libinput libudev) -lpthread
 
 # Targets
-KeyVibe_TARGET = keyvibe
+KEYVIBE_TARGET = keyvibe
 SOUND_TARGET = audio
 KEYBOARD_TARGET = input
 
 # Sources (reorganized)
-KeyVibe_SOURCE = src/main.c src/common/utils.c src/config.c src/soundpacks.c src/app/process.c src/app/watch.c src/cli.c src/app/reload.c
+KEYVIBE_SOURCE = src/main.c src/common/utils.c src/config.c src/soundpacks.c src/app/process.c src/app/watch.c src/cli.c src/app/reload.c
 SOUND_SOURCE = src/audio/main.c src/audio/config.c src/audio/playback.c src/common/utils.c
 KEYBOARD_SOURCE = src/input.c src/common/utils.c
 
@@ -24,11 +25,11 @@ BINDIR = $(PREFIX)/bin
 SHAREDIR = $(PREFIX)/share/keyvibe
 UDEV_RULE = /etc/udev/rules.d/99-keyvibe-allow-keyboard.rules
 
-all: $(KeyVibe_TARGET) $(SOUND_TARGET) $(KEYBOARD_TARGET)
+all: $(KEYVIBE_TARGET) $(SOUND_TARGET) $(KEYBOARD_TARGET)
 
 
 # Build main launcher (needs json-c)
-$(KeyVibe_TARGET): $(KeyVibe_SOURCE)
+$(KEYVIBE_TARGET): $(KEYVIBE_SOURCE)
 	$(CC) $(CFLAGS) $(CPPFLAGS) -o $@ $^ -ljson-c -lpthread
 
 $(SOUND_TARGET): $(SOUND_SOURCE)
@@ -38,20 +39,20 @@ $(KEYBOARD_TARGET): $(KEYBOARD_SOURCE)
 	$(CC) $(CFLAGS) $(CPPFLAGS) -o $@ $^ $(LDFLAGS_KEYBOARD)
 
 clean:
-	rm -f $(KeyVibe_TARGET) $(SOUND_TARGET) $(KEYBOARD_TARGET)
+	rm -f $(KEYVIBE_TARGET) $(SOUND_TARGET) $(KEYBOARD_TARGET)
 
 test: all
 	@echo "Testing sound packs:"
-	./$(KeyVibe_TARGET) --list
+	./$(KEYVIBE_TARGET) --list
 	@echo ""
 	@echo "To run KeyVibe:"
-	@echo "  sudo ./$(KeyVibe_TARGET)                    # Default sound"
-	@echo "  sudo ./$(KeyVibe_TARGET) -s cherrymx-blue-abs  # Specific sound"
-	@echo "  sudo ./$(KeyVibe_TARGET) --help             # Show help"
+	@echo "  sudo ./$(KEYVIBE_TARGET)                    # Default sound"
+	@echo "  sudo ./$(KEYVIBE_TARGET) -s cherrymx-blue-abs  # Specific sound"
+	@echo "  sudo ./$(KEYVIBE_TARGET) --help             # Show help"
 
 install:
 	@echo "Installing KeyVibe to $(DESTDIR)$(BINDIR) and $(DESTDIR)$(SHAREDIR)..."
-	install -Dm755 $(KeyVibe_TARGET) $(DESTDIR)$(BINDIR)/$(KeyVibe_TARGET)
+	install -Dm755 $(KEYVIBE_TARGET) $(DESTDIR)$(BINDIR)/$(KEYVIBE_TARGET)
 	install -Dm755 $(SOUND_TARGET) $(DESTDIR)$(BINDIR)/keyvibe-audio
 	install -Dm755 $(KEYBOARD_TARGET) $(DESTDIR)$(BINDIR)/keyvibe-input
 	install -d $(DESTDIR)$(SHAREDIR)
@@ -71,7 +72,7 @@ install:
 
 uninstall:
 	@echo "Uninstalling KeyVibe from $(DESTDIR)$(BINDIR) and $(DESTDIR)$(SHAREDIR)..."
-	rm -f $(DESTDIR)$(BINDIR)/$(KeyVibe_TARGET)
+	rm -f $(DESTDIR)$(BINDIR)/$(KEYVIBE_TARGET)
 	rm -f $(DESTDIR)$(BINDIR)/keyvibe-audio
 	rm -f $(DESTDIR)$(BINDIR)/keyvibe-input
 	rm -rf $(DESTDIR)$(SHAREDIR)
