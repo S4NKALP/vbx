@@ -93,7 +93,7 @@ Required files inside each `<pack-name>/` directory:
 
 ## 🤝 Contributing
 
-PRs welcome. Please keep code modular and readable, and prefer small, focused changes.
+Contributions are welcome! Feel free to open issues or submit pull requests.
 
 ## 📄 License
 
