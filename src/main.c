@@ -188,7 +188,8 @@ int main(int argc, char *argv[]) {
     if (mouse_sound_name_owned) {
       free(mouse_sound_name);
     }
-    return errorf("VBX: daemon did not stop in time. Try running 'vbx --stop' again.\n");
+    return errorf(
+        "VBX: daemon did not stop in time. Try running 'vbx --stop' again.\n");
   }
   current_mute = read_runtime_mute_file();
 
@@ -270,7 +271,7 @@ int main(int argc, char *argv[]) {
                            current_keyboard_volume, current_mouse_volume,
                            current_keyboard_enabled, current_mouse_enabled)) {
       safe_fprintf(stderr, "Warning: Failed to update config file %s\n",
-              user_cfg_path);
+                   user_cfg_path);
       safe_fprintf(stderr, "Your settings will not be saved for next time.\n");
     } else if (verbose) {
       safe_fprintf(stderr, "Updated config file %s\n", user_cfg_path);
@@ -320,9 +321,9 @@ int main(int argc, char *argv[]) {
   char get_key_presses_path[MAX_PATH_LENGTH];
   char sound_player_path[MAX_PATH_LENGTH];
   safe_snprintf_wrapper(get_key_presses_path, sizeof(get_key_presses_path),
-           "%s/vbx-input", VBX_BIN_DIR);
-  safe_snprintf_wrapper(sound_player_path, sizeof(sound_player_path), "%s/vbx-audio",
-           VBX_BIN_DIR);
+                        "%s/vbx-input", VBX_BIN_DIR);
+  safe_snprintf_wrapper(sound_player_path, sizeof(sound_player_path),
+                        "%s/vbx-audio", VBX_BIN_DIR);
   if (access(get_key_presses_path, X_OK) != 0 ||
       access(sound_player_path, X_OK) != 0) {
     if (sound_name_owned) {
@@ -346,8 +347,9 @@ int main(int argc, char *argv[]) {
         free(mouse_sound_name);
       }
       safe_fprintf(stderr,
-              "VBX daemon is already running (PID: %ld). Use 'vbx --stop' to stop it.\n",
-              (long)existing);
+                   "VBX daemon is already running (PID: %ld). Use 'vbx --stop' "
+                   "to stop it.\n",
+                   (long)existing);
       return 1;
     }
     daemonize_self();
@@ -384,11 +386,14 @@ int main(int argc, char *argv[]) {
   current_mouse_volume = volume;
   current_verbose = verbose;
   safe_strncpy(current_sound_name, sound_name, sizeof(current_sound_name));
-  safe_strncpy(current_mouse_sound_name, mouse_sound_name, sizeof(current_mouse_sound_name));
+  safe_strncpy(current_mouse_sound_name, mouse_sound_name,
+               sizeof(current_mouse_sound_name));
   safe_strncpy(current_config_path, config_path, sizeof(current_config_path));
   safe_strncpy(current_sound_dir, sound_dir, sizeof(current_sound_dir));
-  safe_strncpy(current_mouse_config_path, mouse_config_path, sizeof(current_mouse_config_path));
-  safe_strncpy(current_mouse_sound_dir, mouse_sound_dir, sizeof(current_mouse_sound_dir));
+  safe_strncpy(current_mouse_config_path, mouse_config_path,
+               sizeof(current_mouse_config_path));
+  safe_strncpy(current_mouse_sound_dir, mouse_sound_dir,
+               sizeof(current_mouse_sound_dir));
   if (verbose && !is_daemon) {
     printf("Starting VBX daemon...\n");
     printf("Keyboard sound pack: %s\n", sound_name);
@@ -401,12 +406,12 @@ int main(int argc, char *argv[]) {
   } else {
     if (!is_daemon) {
       printf("VBX daemon started successfully!\n");
-      printf("  Keyboard: %s (volume: %d%%)\n", sound_name, current_keyboard_volume);
-      printf("  Mouse: %s (volume: %d%%)\n", mouse_sound_name, current_mouse_volume);
+      printf("  Keyboard: %s (volume: %d%%)\n", sound_name,
+             current_keyboard_volume);
+      printf("  Mouse: %s (volume: %d%%)\n", mouse_sound_name,
+             current_mouse_volume);
       printf("  Config: ~/.vbx.json (auto-reload enabled)\n");
       printf("\nUse 'vbx --stop' to stop the daemon.\n");
-             "%s\n",
-             sound_name, mouse_sound_name);
       printf("Press Ctrl+C to exit.\n");
     }
   }
