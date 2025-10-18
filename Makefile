@@ -1,4 +1,3 @@
-
 CC = gcc
 # Updated include paths for modular headers
 CFLAGS = -Wall -Wextra -std=c99 -Iinclude -Iinclude/app -Iinclude/audio -Iinclude/common -Iinclude/sound -Iinclude/config
@@ -11,25 +10,25 @@ LDFLAGS_SOUND = -ljson-c -lpulse -lpulse-simple -lsndfile -lpthread
 LDFLAGS_KEYBOARD = $(shell pkg-config --libs libevdev libinput libudev) -lpthread
 
 # Targets
-KEYVIBE_TARGET = keyvibe
+VBX_TARGET = vbx
 SOUND_TARGET = audio
 KEYBOARD_TARGET = input
 
 # Sources (reorganized)
-KEYVIBE_SOURCE = src/main.c src/common/utils.c src/config.c src/soundpacks.c src/app/process.c src/app/watch.c src/cli.c src/app/reload.c
+VBX_SOURCE = src/main.c src/common/utils.c src/config.c src/soundpacks.c src/app/process.c src/app/watch.c src/cli.c src/app/reload.c
 SOUND_SOURCE = src/audio/main.c src/audio/config.c src/audio/playback.c src/common/utils.c
 KEYBOARD_SOURCE = src/input.c src/common/utils.c
 
 # Install paths
 BINDIR = $(PREFIX)/bin
-SHAREDIR = $(PREFIX)/share/keyvibe
-UDEV_RULE = /etc/udev/rules.d/99-keyvibe-allow-keyboard.rules
+SHAREDIR = $(PREFIX)/share/vbx
+UDEV_RULE = /etc/udev/rules.d/99-vbx-allow-keyboard.rules
 
-all: $(KEYVIBE_TARGET) $(SOUND_TARGET) $(KEYBOARD_TARGET)
+all: $(VBX_TARGET) $(SOUND_TARGET) $(KEYBOARD_TARGET)
 
 
 # Build main launcher (needs json-c)
-$(KEYVIBE_TARGET): $(KEYVIBE_SOURCE)
+$(VBX_TARGET): $(VBX_SOURCE)
 	$(CC) $(CFLAGS) $(CPPFLAGS) -o $@ $^ -ljson-c -lpthread
 
 $(SOUND_TARGET): $(SOUND_SOURCE)
@@ -39,22 +38,22 @@ $(KEYBOARD_TARGET): $(KEYBOARD_SOURCE)
 	$(CC) $(CFLAGS) $(CPPFLAGS) -o $@ $^ $(LDFLAGS_KEYBOARD)
 
 clean:
-	rm -f $(KEYVIBE_TARGET) $(SOUND_TARGET) $(KEYBOARD_TARGET)
+	rm -f $(VBX_TARGET) $(SOUND_TARGET) $(KEYBOARD_TARGET)
 
 test: all
 	@echo "Testing sound packs:"
-	./$(KEYVIBE_TARGET) --list
+	./$(VBX_TARGET) --list
 	@echo ""
-	@echo "To run KeyVibe:"
-	@echo "  sudo ./$(KEYVIBE_TARGET)                    # Default sound"
-	@echo "  sudo ./$(KEYVIBE_TARGET) -s cherrymx-blue-abs  # Specific sound"
-	@echo "  sudo ./$(KEYVIBE_TARGET) --help             # Show help"
+	@echo "To run VBX:"
+	@echo "  sudo ./$(VBX_TARGET)                    # Default sound"
+	@echo "  sudo ./$(VBX_TARGET) -s cherrymx-blue-abs  # Specific sound"
+	@echo "  sudo ./$(VBX_TARGET) --help             # Show help"
 
 install:
-	@echo "Installing KeyVibe to $(DESTDIR)$(BINDIR) and $(DESTDIR)$(SHAREDIR)..."
-	install -Dm755 $(KEYVIBE_TARGET) $(DESTDIR)$(BINDIR)/$(KEYVIBE_TARGET)
-	install -Dm755 $(SOUND_TARGET) $(DESTDIR)$(BINDIR)/keyvibe-audio
-	install -Dm755 $(KEYBOARD_TARGET) $(DESTDIR)$(BINDIR)/keyvibe-input
+	@echo "Installing VBX to $(DESTDIR)$(BINDIR) and $(DESTDIR)$(SHAREDIR)..."
+	install -Dm755 $(VBX_TARGET) $(DESTDIR)$(BINDIR)/$(VBX_TARGET)
+	install -Dm755 $(SOUND_TARGET) $(DESTDIR)$(BINDIR)/vbx-audio
+	install -Dm755 $(KEYBOARD_TARGET) $(DESTDIR)$(BINDIR)/vbx-input
 	install -d $(DESTDIR)$(SHAREDIR)
 	cp -r soundpacks $(DESTDIR)$(SHAREDIR)/
 	@echo "Installing udev rule for non-root keyboard access..."
@@ -71,10 +70,10 @@ install:
 	@echo "Installation complete."
 
 uninstall:
-	@echo "Uninstalling KeyVibe from $(DESTDIR)$(BINDIR) and $(DESTDIR)$(SHAREDIR)..."
-	rm -f $(DESTDIR)$(BINDIR)/$(KEYVIBE_TARGET)
-	rm -f $(DESTDIR)$(BINDIR)/keyvibe-audio
-	rm -f $(DESTDIR)$(BINDIR)/keyvibe-input
+	@echo "Uninstalling VBX from $(DESTDIR)$(BINDIR) and $(DESTDIR)$(SHAREDIR)..."
+	rm -f $(DESTDIR)$(BINDIR)/$(VBX_TARGET)
+	rm -f $(DESTDIR)$(BINDIR)/vbx-audio
+	rm -f $(DESTDIR)$(BINDIR)/vbx-input
 	rm -rf $(DESTDIR)$(SHAREDIR)
 	@echo "Removing udev rule..."
 	@sudo rm -f $(UDEV_RULE) || true

@@ -1,5 +1,5 @@
-#ifndef KEYVIBE_CLI_H
-#define KEYVIBE_CLI_H
+#ifndef VBX_CLI_H
+#define VBX_CLI_H
 
 typedef struct {
   char *sound;
@@ -20,6 +20,6 @@ typedef struct {
 void print_usage(const char *program_name);
 int parse_cli(int argc, char **argv, CliOptions *out);
 
-#endif // KEYVIBE_CLI_H
+#endif // VBX_CLI_H
 
 

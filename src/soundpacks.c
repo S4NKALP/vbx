@@ -10,11 +10,11 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#define AUDIO_BASE_DIR KeyVibe_DATA_DIR "/soundpacks"
+#define AUDIO_BASE_DIR VBX_DATA_DIR "/soundpacks"
 #define KEYBOARD_AUDIO_DIR AUDIO_BASE_DIR "/keyboard"
 #define MOUSE_AUDIO_DIR AUDIO_BASE_DIR "/mouse"
-#define USER_KEYBOARD_AUDIO_SUBPATH "/.local/share/keyvibe/soundpacks/keyboard"
-#define USER_MOUSE_AUDIO_SUBPATH "/.local/share/keyvibe/soundpacks/mouse"
+#define USER_KEYBOARD_AUDIO_SUBPATH "/.local/share/vbx/soundpacks/keyboard"
+#define USER_MOUSE_AUDIO_SUBPATH "/.local/share/vbx/soundpacks/mouse"
 
 static void get_user_keyboard_audio_dir(char *buffer, size_t buflen) {
   buffer[0] = '\0';

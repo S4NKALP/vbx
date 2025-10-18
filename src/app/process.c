@@ -21,7 +21,7 @@ volatile sig_atomic_t reload_requested = 0;
 void cleanup_processes(int sig) {
   (void)sig;
   if (!is_daemon) {
-    printf("\nShutting down KeyVibe...\n");
+    printf("\nShutting down VBX...\n");
   }
   if (sound_pid > 0) {
     kill(sound_pid, SIGTERM);
@@ -42,7 +42,7 @@ int require_running_pid(pid_t *out_pid) {
   pid_t running_pid = 0;
   if (!read_pidfile(pidfile_path, &running_pid) ||
       !process_is_running(running_pid)) {
-    fprintf(stderr, "KeyVibe: not running.\n");
+    fprintf(stderr, "VBX: not running.\n");
     return 0;
   }
   *out_pid = running_pid;
@@ -108,8 +108,8 @@ int start_children(const char *sound_dir, const char *config_path, int volume,
     return 0;
   }
   char sound_player_path[MAX_PATH_LENGTH];
-  snprintf(sound_player_path, sizeof(sound_player_path), "%s/keyvibe-audio",
-           KeyVibe_BIN_DIR);
+  snprintf(sound_player_path, sizeof(sound_player_path), "%s/vbx-audio",
+           VBX_BIN_DIR);
   if (sound_pid == 0) {
     close(pipefd[1]);
     dup2(pipefd[0], STDIN_FILENO);
@@ -131,11 +131,11 @@ int start_children(const char *sound_dir, const char *config_path, int volume,
     int_to_str(keyboard_enabled_str, sizeof(keyboard_enabled_str), keyboard_enabled);
     int_to_str(mouse_enabled_str, sizeof(mouse_enabled_str), mouse_enabled);
     
-    execl(sound_player_path, "keyvibe-audio", "config.json", volume_str,
+    execl(sound_player_path, "vbx-audio", "config.json", volume_str,
           verbose_str, mute_str, mouse_config_path, mouse_volume_str,
           keyboard_mute_str, mouse_mute_str, keyboard_enabled_str,
           mouse_enabled_str, (char *)NULL);
-    perror("execl keyvibe-audio");
+    perror("execl vbx-audio");
     exit(1);
   }
   keyboard_pid = fork();
@@ -148,13 +148,13 @@ int start_children(const char *sound_dir, const char *config_path, int volume,
   }
   char get_key_presses_path[MAX_PATH_LENGTH];
   snprintf(get_key_presses_path, sizeof(get_key_presses_path),
-           "%s/keyvibe-input", KeyVibe_BIN_DIR);
+           "%s/vbx-input", VBX_BIN_DIR);
   if (keyboard_pid == 0) {
     close(pipefd[0]);
     dup2(pipefd[1], STDOUT_FILENO);
     close(pipefd[1]);
-    execl(get_key_presses_path, "keyvibe-input", (char *)NULL);
-    perror("execl keyvibe-input");
+    execl(get_key_presses_path, "vbx-input", (char *)NULL);
+    perror("execl vbx-input");
     exit(1);
   }
   close(pipefd[0]);

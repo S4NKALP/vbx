@@ -1,5 +1,5 @@
-#ifndef KEYVIBE_RELOAD_H
-#define KEYVIBE_RELOAD_H
+#ifndef VBX_RELOAD_H
+#define VBX_RELOAD_H
 
 int handle_reload(const char *user_cfg_path,
                   char *current_sound_name, char *current_mouse_sound_name,
@@ -10,6 +10,6 @@ int handle_reload(const char *user_cfg_path,
                   int current_mouse_volume_arg, int current_keyboard_mute,
                   int current_mouse_mute, int *current_keyboard_enabled, int *current_mouse_enabled);
 
-#endif // KEYVIBE_RELOAD_H
+#endif // VBX_RELOAD_H
 
 

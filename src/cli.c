@@ -30,7 +30,7 @@ static void set_volume(int *volume_ptr, int value) {
 }
 
 void print_usage(const char *program_name) {
-  printf("KeyVibe - Mechanical Keyboard Sound Simulator\n");
+  printf("VBX - Mechanical Keyboard Sound Simulator\n");
   printf("Version: %s\n\n", PROJECT_VERSION);
 
   printf("USAGE:\n");
@@ -79,7 +79,7 @@ void print_usage(const char *program_name) {
   printf("  %s --keyboard-volume 80 --mouse-volume 60    # Different volumes\n",
          program_name);
   printf("\n");
-  printf("CONFIG: Settings are saved to ~/.keyvibe.json and auto-reload in "
+  printf("CONFIG: Settings are saved to ~/.vbx.json and auto-reload in "
          "daemon mode.\n");
 }
 

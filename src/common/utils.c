@@ -13,7 +13,7 @@ int read_runtime_mute_file() {
   const char *rd = getenv("XDG_RUNTIME_DIR");
   if (!rd || strlen(rd) == 0)
     rd = "/tmp";
-  if (!safe_snprintf(mute_file, sizeof(mute_file), "%s/keyvibe-mute-%d", rd,
+  if (!safe_snprintf(mute_file, sizeof(mute_file), "%s/vbx-mute-%d", rd,
                      (int)getuid()))
     return 0;
   FILE *f = fopen(mute_file, "r");
@@ -34,7 +34,7 @@ static void write_runtime_state_file(const char *filename_suffix, int value) {
   const char *rd = getenv("XDG_RUNTIME_DIR");
   if (!rd || strlen(rd) == 0)
     rd = "/tmp";
-  if (!safe_snprintf(state_file, sizeof(state_file), "%s/keyvibe-%s-%d", rd,
+  if (!safe_snprintf(state_file, sizeof(state_file), "%s/vbx-%s-%d", rd,
                      filename_suffix, (int)getuid()))
     return;
   FILE *f = fopen(state_file, "w");
@@ -83,7 +83,7 @@ const char *get_runtime_dir(void) {
 
 void build_pidfile_path(char *buffer, size_t buflen) {
   const char *rd = get_runtime_dir();
-  safe_snprintf(buffer, buflen, "%s/keyvibe-%d.pid", rd, (int)getuid());
+  safe_snprintf(buffer, buflen, "%s/vbx-%d.pid", rd, (int)getuid());
 }
 
 int read_pidfile(const char *path, pid_t *out_pid) {

@@ -29,12 +29,12 @@
 #include <unistd.h>
 
 #define MAX_PATH_LENGTH 1024
-#define AUDIO_BASE_DIR KeyVibe_DATA_DIR "/soundpacks"
+#define AUDIO_BASE_DIR VBX_DATA_DIR "/soundpacks"
 #define KEYBOARD_AUDIO_DIR AUDIO_BASE_DIR "/keyboard"
 #define MOUSE_AUDIO_DIR AUDIO_BASE_DIR "/mouse"
-#define USER_KEYBOARD_AUDIO_SUBPATH "/.local/share/keyvibe/soundpacks/keyboard"
-#define USER_MOUSE_AUDIO_SUBPATH "/.local/share/keyvibe/soundpacks/mouse"
-#define USER_CONFIG_FILENAME ".keyvibe.json"
+#define USER_KEYBOARD_AUDIO_SUBPATH "/.local/share/vbx/soundpacks/keyboard"
+#define USER_MOUSE_AUDIO_SUBPATH "/.local/share/vbx/soundpacks/mouse"
+#define USER_CONFIG_FILENAME ".vbx.json"
 
 extern pid_t keyboard_pid;
 extern pid_t sound_pid;
@@ -157,7 +157,7 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < 30; i++) {
       if (!process_is_running(running_pid)) {
         unlink(pidfile_path);
-        printf("KeyVibe stopped.\n");
+        printf("VBX stopped.\n");
         if (sound_name_owned) {
           free(sound_name);
         }
@@ -177,7 +177,7 @@ int main(int argc, char *argv[]) {
     if (mouse_sound_name_owned) {
       free(mouse_sound_name);
     }
-    return errorf("KeyVibe: process did not stop in time\n");
+    return errorf("VBX: process did not stop in time\n");
   }
   current_mute = read_runtime_mute_file();
 
@@ -288,9 +288,9 @@ int main(int argc, char *argv[]) {
   char get_key_presses_path[MAX_PATH_LENGTH];
   char sound_player_path[MAX_PATH_LENGTH];
   safe_snprintf_wrapper(get_key_presses_path, sizeof(get_key_presses_path),
-           "%s/keyvibe-input", KeyVibe_BIN_DIR);
-  safe_snprintf_wrapper(sound_player_path, sizeof(sound_player_path), "%s/keyvibe-audio",
-           KeyVibe_BIN_DIR);
+           "%s/vbx-input", VBX_BIN_DIR);
+  safe_snprintf_wrapper(sound_player_path, sizeof(sound_player_path), "%s/vbx-audio",
+           VBX_BIN_DIR);
   if (access(get_key_presses_path, X_OK) != 0 ||
       access(sound_player_path, X_OK) != 0) {
     if (sound_name_owned) {
@@ -300,7 +300,7 @@ int main(int argc, char *argv[]) {
       free(mouse_sound_name);
     }
     return errorf("Error: Cannot find or execute required binaries in %s\n",
-                  KeyVibe_BIN_DIR);
+                  VBX_BIN_DIR);
   }
   signal(SIGINT, cleanup_processes);
   signal(SIGTERM, cleanup_processes);
@@ -314,7 +314,7 @@ int main(int argc, char *argv[]) {
         free(mouse_sound_name);
       }
       safe_fprintf(stderr,
-              "KeyVibe already running (pid %ld). Use --stop to stop it.\n",
+              "VBX already running (pid %ld). Use --stop to stop it.\n",
               (long)existing);
       return 1;
     }
@@ -358,7 +358,7 @@ int main(int argc, char *argv[]) {
   safe_strncpy(current_mouse_config_path, mouse_config_path, sizeof(current_mouse_config_path));
   safe_strncpy(current_mouse_sound_dir, mouse_sound_dir, sizeof(current_mouse_sound_dir));
   if (verbose && !is_daemon) {
-    printf("KeyVibe starting...\n");
+    printf("VBX starting...\n");
     printf("Keyboard sound pack: %s\n", sound_name);
     printf("Mouse sound pack: %s\n", mouse_sound_name);
     printf("Keyboard config file: %s\n", config_path);
@@ -368,7 +368,7 @@ int main(int argc, char *argv[]) {
     printf("Press Ctrl+C to exit.\n\n");
   } else {
     if (!is_daemon) {
-      printf("KeyVibe started with keyboard sound pack: %s, mouse sound pack: "
+      printf("VBX started with keyboard sound pack: %s, mouse sound pack: "
              "%s\n",
              sound_name, mouse_sound_name);
       printf("Press Ctrl+C to exit.\n");
@@ -443,7 +443,7 @@ int main(int argc, char *argv[]) {
     }
   }
   if (!is_daemon) {
-    printf("KeyVibe exited.\n");
+    printf("VBX exited.\n");
   }
   if (sound_name_owned) {
     free(sound_name);

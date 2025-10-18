@@ -1,5 +1,5 @@
-#ifndef KEYVIBE_PROCESS_H
-#define KEYVIBE_PROCESS_H
+#ifndef VBX_PROCESS_H
+#define VBX_PROCESS_H
 
 #include <signal.h>
 #include <sys/types.h>
@@ -20,4 +20,4 @@ int start_children(const char *sound_dir, const char *config_path, int volume,
                    int keyboard_mute, int mouse_mute, int keyboard_enabled, int mouse_enabled);
 void handle_sighup(int sig);
 
-#endif // KEYVIBE_PROCESS_H
+#endif // VBX_PROCESS_H

@@ -1,5 +1,5 @@
-#ifndef KEYVIBE_AUDIO_TYPES_H
-#define KEYVIBE_AUDIO_TYPES_H
+#ifndef VBX_AUDIO_TYPES_H
+#define VBX_AUDIO_TYPES_H
 
 #include <sndfile.h>
 
@@ -42,4 +42,4 @@ extern int g_mouse_mute;
 extern int g_keyboard_enabled;
 extern int g_mouse_enabled;
 
-#endif // KEYVIBE_AUDIO_TYPES_H
+#endif // VBX_AUDIO_TYPES_H

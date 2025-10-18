@@ -1,5 +1,5 @@
-#ifndef KEYVIBE_SOUNDPACKS_H
-#define KEYVIBE_SOUNDPACKS_H
+#ifndef VBX_SOUNDPACKS_H
+#define VBX_SOUNDPACKS_H
 #include <stddef.h>
 
 int resolve_keyboard_sound_base_dir(const char *sound_name, char *out_basedir,
@@ -16,4 +16,4 @@ int validate_keyboard_sound_pack(const char *sound_name);
 int validate_mouse_sound_pack(const char *sound_name);
 int list_sound_packs(void);
 
-#endif // KEYVIBE_SOUNDPACKS_H
+#endif // VBX_SOUNDPACKS_H

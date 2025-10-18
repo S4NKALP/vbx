@@ -1,5 +1,5 @@
-#ifndef KEYVIBE_UTILS_H
-#define KEYVIBE_UTILS_H
+#ifndef VBX_UTILS_H
+#define VBX_UTILS_H
 
 #include <stddef.h>
 #include <stdio.h>
@@ -45,4 +45,4 @@ void *safe_memcpy(void *dest, const void *src, size_t n);
 void *safe_memmove(void *dest, const void *src, size_t n);
 void *safe_memset(void *s, int c, size_t n);
 
-#endif // KEYVIBE_UTILS_H
+#endif // VBX_UTILS_H

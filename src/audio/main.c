@@ -22,7 +22,7 @@ static int read_runtime_state(const char *filename_suffix, int default_value) {
   if (!rd || strlen(rd) == 0) {
     rd = "/tmp";
   }
-  if (!safe_snprintf(state_file, sizeof(state_file), "%s/keyvibe-%s-%d", rd,
+  if (!safe_snprintf(state_file, sizeof(state_file), "%s/vbx-%s-%d", rd,
                      filename_suffix, (int)getuid())) {
     return default_value;
   }

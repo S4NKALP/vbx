@@ -13,7 +13,7 @@ char *get_user_config_path(char *buffer, size_t buflen) {
   const char *home = get_home_dir();
   if (!home)
     return NULL;
-  if (!safe_snprintf(buffer, buflen, "%s/%s", home, ".keyvibe.json"))
+  if (!safe_snprintf(buffer, buflen, "%s/%s", home, ".vbx.json"))
     return NULL;
   return buffer;
 }
