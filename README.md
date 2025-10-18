@@ -102,4 +102,5 @@ MIT — see [LICENSE](LICENSE).
 ## 🙏 Credits
 
 - [MechVibes](https://github.com/hainguyents13/mechvibes) for sound packs
+- [mechavibes-dx](https://github.com/hainguyents13/mechvibes-dx) for sound packs
 - [showmethekey](https://github.com/AlynxZhou/showmethekey) for code
