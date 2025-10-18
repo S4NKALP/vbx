@@ -3,20 +3,20 @@
 
 > A CLI tool that brings realistic mechanical keyboard sounds to every keystroke.
 
-KeyVibe listens to your keyboard events and plays high‑quality switch sounds with low latency. It ships with multiple sound packs and supports your own custom packs. Run it interactively or as a background daemon with live reload of your preferences.
+vbx listens to your keyboard events and plays high‑quality switch sounds with low latency. It ships with multiple sound packs and supports your own custom packs. Run it interactively or as a background daemon with live reload of your preferences.
 
 </div>
 
 <div align="center">
 
-[![Contributors](https://img.shields.io/github/contributors/S4NKALP/KeyVibe?style=for-the-badge&color=6366f1)](https://github.com/S4NKALP/KeyVibe/graphs/contributors)
-[![Stars](https://img.shields.io/github/stars/S4NKALP/KeyVibe?style=for-the-badge&color=10b981)](https://github.com/S4NKALP/KeyVibe/stargazers)
-[![Forks](https://img.shields.io/github/forks/S4NKALP/KeyVibe?style=for-the-badge&color=06b6d4)](https://github.com/S4NKALP/KeyVibe/network/members)
-[![License](https://img.shields.io/github/license/S4NKALP/KeyVibe?style=for-the-badge&color=f59e0b)](LICENSE)
-[![Issues](https://img.shields.io/github/issues/S4NKALP/KeyVibe?style=for-the-badge&color=ef4444)](https://github.com/S4NKALP/KeyVibe/issues)
-[![Last Commit](https://img.shields.io/github/last-commit/S4NKALP/KeyVibe?style=for-the-badge&color=8b5cf6)](https://github.com/S4NKALP/KeyVibe/pulse)
+[![Contributors](https://img.shields.io/github/contributors/S4NKALP/vbx?style=for-the-badge&color=6366f1)](https://github.com/S4NKALP/vbx/graphs/contributors)
+[![Stars](https://img.shields.io/github/stars/S4NKALP/vbx?style=for-the-badge&color=10b981)](https://github.com/S4NKALP/vbx/stargazers)
+[![Forks](https://img.shields.io/github/forks/S4NKALP/vbx?style=for-the-badge&color=06b6d4)](https://github.com/S4NKALP/vbx/network/members)
+[![License](https://img.shields.io/github/license/S4NKALP/vbx?style=for-the-badge&color=f59e0b)](LICENSE)
+[![Issues](https://img.shields.io/github/issues/S4NKALP/vbx?style=for-the-badge&color=ef4444)](https://github.com/S4NKALP/vbx/issues)
+[![Last Commit](https://img.shields.io/github/last-commit/S4NKALP/vbx?style=for-the-badge&color=8b5cf6)](https://github.com/S4NKALP/vbx/pulse)
 
-[**Report Bug**](https://github.com/S4NKALP/KeyVibe/issues) • [**Request Feature**](https://github.com/S4NKALP/KeyVibe/discussions)
+[**Report Bug**](https://github.com/S4NKALP/vbx/issues) • [**Request Feature**](https://github.com/S4NKALP/vbx/discussions)
 
 </div>
 
@@ -52,8 +52,8 @@ paru -S keyvibe
 ### 🛠️ Build From Source
 
 ```bash
-git clone https://github.com/S4NKALP/KeyVibe.git
-cd KeyVibe
+git clone https://github.com/S4NKALP/vbx.git
+cd vbx
 make
 sudo make install
 ```

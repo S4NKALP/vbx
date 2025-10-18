@@ -7,8 +7,9 @@
 #include <string.h>
 
 // Helper function to parse device-specific arguments
-static int parse_device_argument(const char *optarg, const char *action, 
-                                int *keyboard_value, int *mouse_value, int value) {
+static int parse_device_argument(const char *optarg, const char *action,
+                                 int *keyboard_value, int *mouse_value,
+                                 int value) {
   if (optarg == NULL || strcmp(optarg, "both") == 0) {
     *keyboard_value = value;
     *mouse_value = value;
@@ -34,8 +35,10 @@ void print_usage(const char *program_name) {
   printf("Version: %s\n\n", PROJECT_VERSION);
 
   printf("DESCRIPTION:\n");
-  printf("  VBX brings realistic mechanical keyboard sounds to every keystroke.\n");
-  printf("  Run interactively or as a background daemon with live config reload.\n\n");
+  printf("  VBX brings realistic mechanical keyboard and mouse sounds to every "
+         "keystroke.\n");
+  printf("  Run interactively or as a background daemon with live config "
+         "reload.\n\n");
 
   printf("USAGE:\n");
   printf("  %s [OPTIONS]\n\n", program_name);
@@ -53,8 +56,10 @@ void print_usage(const char *program_name) {
   printf("AUDIO CONTROL:\n");
   printf("  -m, --mute[=DEVICE]      Mute audio (keyboard|mouse|both)\n");
   printf("  -u, --unmute[=DEVICE]    Unmute audio (keyboard|mouse|both)\n");
-  printf("  --enable[=DEVICE]        Enable device sounds (keyboard|mouse|both)\n");
-  printf("  --disable[=DEVICE]       Disable device sounds (keyboard|mouse|both)\n\n");
+  printf("  --enable[=DEVICE]        Enable device sounds "
+         "(keyboard|mouse|both)\n");
+  printf("  --disable[=DEVICE]       Disable device sounds "
+         "(keyboard|mouse|both)\n\n");
 
   printf("DAEMON MODE:\n");
   printf("  -d, --daemon             Run in background with auto-reload\n");
@@ -65,21 +70,26 @@ void print_usage(const char *program_name) {
   printf("  -h, --help               Show this help message\n\n");
 
   printf("QUICK EXAMPLES:\n");
-  printf("  %s --list                                    # Browse sound packs\n",
+  printf(
+      "  %s --list                                    # Browse sound packs\n",
+      program_name);
+  printf("  %s -S cherrymx-blue -V 75                   # Cherry MX Blue at "
+         "75%%\n",
          program_name);
-  printf("  %s -S cherrymx-blue -V 75                   # Cherry MX Blue at 75%%\n",
-         program_name);
-  printf("  %s --daemon                                  # Start background service\n",
+  printf("  %s --daemon                                  # Start background "
+         "service\n",
          program_name);
   printf("  %s --mute keyboard                          # Mute keyboard only\n",
          program_name);
-  printf("  %s --disable mouse                          # Disable mouse sounds\n",
-         program_name);
+  printf(
+      "  %s --disable mouse                          # Disable mouse sounds\n",
+      program_name);
   printf("  %s --keyboard-volume 80 --mouse-volume 60    # Different volumes\n",
          program_name);
   printf("\n");
   printf("CONFIGURATION:\n");
-  printf("  Settings are saved to ~/.vbx.json and auto-reload in daemon mode.\n");
+  printf(
+      "  Settings are saved to ~/.vbx.json and auto-reload in daemon mode.\n");
   printf("  Use --list to see available sound packs and their sources.\n");
 }
 
@@ -126,7 +136,8 @@ int parse_cli(int argc, char **argv, CliOptions *out) {
             (n == 4 && strncmp(a, "help", 4) == 0) ||
             (n == 7 && strncmp(a, "verbose", 7) == 0))) {
         safe_fprintf(stderr, "Error: Unknown option '%s'\n", argv[i]);
-        safe_fprintf(stderr, "Run '%s --help' to see available options.\n", argv[0]);
+        safe_fprintf(stderr, "Run '%s --help' to see available options.\n",
+                     argv[0]);
         return 1;
       }
     }
@@ -158,34 +169,36 @@ int parse_cli(int argc, char **argv, CliOptions *out) {
       set_volume(&out->mouse_volume, atoi(optarg));
       break;
     case 'm':
-      if (parse_device_argument(optarg, "mute", &out->keyboard_mute, &out->mouse_mute, 1) != 0) {
+      if (parse_device_argument(optarg, "mute", &out->keyboard_mute,
+                                &out->mouse_mute, 1) != 0) {
         return 1;
       }
       break;
     case 'u':
-      if (parse_device_argument(optarg, "unmute", &out->keyboard_mute, &out->mouse_mute, 0) != 0) {
+      if (parse_device_argument(optarg, "unmute", &out->keyboard_mute,
+                                &out->mouse_mute, 0) != 0) {
         return 1;
       }
       break;
     case 1000: // --enable
     case 1001: // --disable
-      {
-        int enable_value = (opt == 1000) ? 1 : 0;
-        const char *action = (opt == 1000) ? "enable" : "disable";
-        
-        if (optarg == NULL) {
-          // Handle space-separated argument: --enable mouse
-          if (optind < argc && argv[optind][0] != '-') {
-            optarg = argv[optind++];
-          } else {
-            optarg = "both"; // default to both if no argument
-          }
-        }
-        if (parse_device_argument(optarg, action, &out->keyboard_enabled, &out->mouse_enabled, enable_value) != 0) {
-          return 1;
+    {
+      int enable_value = (opt == 1000) ? 1 : 0;
+      const char *action = (opt == 1000) ? "enable" : "disable";
+
+      if (optarg == NULL) {
+        // Handle space-separated argument: --enable mouse
+        if (optind < argc && argv[optind][0] != '-') {
+          optarg = argv[optind++];
+        } else {
+          optarg = "both"; // default to both if no argument
         }
       }
-      break;
+      if (parse_device_argument(optarg, action, &out->keyboard_enabled,
+                                &out->mouse_enabled, enable_value) != 0) {
+        return 1;
+      }
+    } break;
     case 'l':
       out->list_flag = 1;
       break;
