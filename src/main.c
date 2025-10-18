@@ -70,6 +70,9 @@ int main(int argc, char *argv[]) {
   char user_cfg_path[MAX_PATH_LENGTH];
   if (get_user_config_path(user_cfg_path, sizeof(user_cfg_path))) {
     if (access(user_cfg_path, R_OK) == 0) {
+      if (verbose) {
+        printf("Loading configuration from: %s\n", user_cfg_path);
+      }
       char *cfg_keyboard_sound = NULL;
       char *cfg_mouse_sound = NULL;
       int cfg_keyboard_volume = volume;
@@ -133,6 +136,14 @@ int main(int argc, char *argv[]) {
     }
     return rc;
   }
+
+  // Show welcome message for first-time users
+  if (access(user_cfg_path, F_OK) != 0 && !flag_daemon) {
+    printf("\nWelcome to VBX!\n");
+    printf("This appears to be your first time running VBX.\n");
+    printf("A default configuration will be created at: %s\n", user_cfg_path);
+    printf("\n");
+  }
   build_pidfile_path(pidfile_path, 1024);
   if (flag_stop) {
     pid_t running_pid = 0;
@@ -157,7 +168,7 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < 30; i++) {
       if (!process_is_running(running_pid)) {
         unlink(pidfile_path);
-        printf("VBX stopped.\n");
+        printf("VBX daemon stopped successfully.\n");
         if (sound_name_owned) {
           free(sound_name);
         }
@@ -177,7 +188,7 @@ int main(int argc, char *argv[]) {
     if (mouse_sound_name_owned) {
       free(mouse_sound_name);
     }
-    return errorf("VBX: process did not stop in time\n");
+    return errorf("VBX: daemon did not stop in time. Try running 'vbx --stop' again.\n");
   }
   current_mute = read_runtime_mute_file();
 
@@ -213,18 +224,38 @@ int main(int argc, char *argv[]) {
   if (cli_opts.keyboard_mute >= 0) {
     current_keyboard_mute = cli_opts.keyboard_mute;
     config_updated = 1;
+    if (current_keyboard_mute) {
+      printf("Keyboard sounds muted.\n");
+    } else {
+      printf("Keyboard sounds unmuted.\n");
+    }
   }
   if (cli_opts.mouse_mute >= 0) {
     current_mouse_mute = cli_opts.mouse_mute;
     config_updated = 1;
+    if (current_mouse_mute) {
+      printf("Mouse sounds muted.\n");
+    } else {
+      printf("Mouse sounds unmuted.\n");
+    }
   }
   if (cli_opts.keyboard_enabled >= 0) {
     current_keyboard_enabled = cli_opts.keyboard_enabled;
     config_updated = 1;
+    if (current_keyboard_enabled) {
+      printf("Keyboard sounds enabled.\n");
+    } else {
+      printf("Keyboard sounds disabled.\n");
+    }
   }
   if (cli_opts.mouse_enabled >= 0) {
     current_mouse_enabled = cli_opts.mouse_enabled;
     config_updated = 1;
+    if (current_mouse_enabled) {
+      printf("Mouse sounds enabled.\n");
+    } else {
+      printf("Mouse sounds disabled.\n");
+    }
   }
 
   write_runtime_mute_file(current_mute);
@@ -240,6 +271,7 @@ int main(int argc, char *argv[]) {
                            current_keyboard_enabled, current_mouse_enabled)) {
       safe_fprintf(stderr, "Warning: Failed to update config file %s\n",
               user_cfg_path);
+      safe_fprintf(stderr, "Your settings will not be saved for next time.\n");
     } else if (verbose) {
       safe_fprintf(stderr, "Updated config file %s\n", user_cfg_path);
     }
@@ -263,7 +295,7 @@ int main(int argc, char *argv[]) {
                              current_keyboard_enabled, current_mouse_enabled)) {
         safe_fprintf(stderr, "Warning: Failed to write %s\n", user_cfg_path);
       } else if (verbose) {
-        safe_fprintf(stderr, "Created default config %s\n", user_cfg_path);
+        printf("Created default configuration: %s\n", user_cfg_path);
       }
     }
   }
@@ -314,7 +346,7 @@ int main(int argc, char *argv[]) {
         free(mouse_sound_name);
       }
       safe_fprintf(stderr,
-              "VBX already running (pid %ld). Use --stop to stop it.\n",
+              "VBX daemon is already running (PID: %ld). Use 'vbx --stop' to stop it.\n",
               (long)existing);
       return 1;
     }
@@ -358,7 +390,7 @@ int main(int argc, char *argv[]) {
   safe_strncpy(current_mouse_config_path, mouse_config_path, sizeof(current_mouse_config_path));
   safe_strncpy(current_mouse_sound_dir, mouse_sound_dir, sizeof(current_mouse_sound_dir));
   if (verbose && !is_daemon) {
-    printf("VBX starting...\n");
+    printf("Starting VBX daemon...\n");
     printf("Keyboard sound pack: %s\n", sound_name);
     printf("Mouse sound pack: %s\n", mouse_sound_name);
     printf("Keyboard config file: %s\n", config_path);
@@ -368,7 +400,11 @@ int main(int argc, char *argv[]) {
     printf("Press Ctrl+C to exit.\n\n");
   } else {
     if (!is_daemon) {
-      printf("VBX started with keyboard sound pack: %s, mouse sound pack: "
+      printf("VBX daemon started successfully!\n");
+      printf("  Keyboard: %s (volume: %d%%)\n", sound_name, current_keyboard_volume);
+      printf("  Mouse: %s (volume: %d%%)\n", mouse_sound_name, current_mouse_volume);
+      printf("  Config: ~/.vbx.json (auto-reload enabled)\n");
+      printf("\nUse 'vbx --stop' to stop the daemon.\n");
              "%s\n",
              sound_name, mouse_sound_name);
       printf("Press Ctrl+C to exit.\n");
@@ -443,7 +479,7 @@ int main(int argc, char *argv[]) {
     }
   }
   if (!is_daemon) {
-    printf("VBX exited.\n");
+    printf("VBX daemon exited.\n");
   }
   if (sound_name_owned) {
     free(sound_name);

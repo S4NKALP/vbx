@@ -19,7 +19,8 @@ int init_audio() {
   if (g_sound_pack.is_multi)
     return 0;
   if (strlen(g_sound_pack.sound_file) == 0) {
-    fprintf(stderr, "Error: No sound file specified in config\n");
+    fprintf(stderr, "Error: No sound file specified in sound pack config\n");
+    fprintf(stderr, "Check that your sound pack has a valid config.json file.\n");
     return -1;
   }
   if (access(g_sound_pack.sound_file, R_OK) != 0) {
@@ -91,8 +92,9 @@ void *play_sound_thread(void *arg) {
     SF_INFO sf_info = {0};
     SNDFILE *sf = sf_open(file_to_play, SFM_READ, &sf_info);
     if (!sf) {
-      fprintf(stderr, "Could not open sound file: %s (Error: %s)\n",
-              file_to_play, sf_strerror(NULL));
+      fprintf(stderr, "Error: Could not open sound file: %s\n", file_to_play);
+      fprintf(stderr, "Details: %s\n", sf_strerror(NULL));
+      fprintf(stderr, "Check that the audio file exists and is readable.\n");
       goto exit_cleanup;
     }
     pa_sample_spec ss = {.format = PA_SAMPLE_S16LE,

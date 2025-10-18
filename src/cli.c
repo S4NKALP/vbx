@@ -17,8 +17,8 @@ static int parse_device_argument(const char *optarg, const char *action,
   } else if (strcmp(optarg, "mouse") == 0) {
     *mouse_value = value;
   } else {
-    safe_fprintf(stderr, "Error: Invalid %s device '%s'\n", action, optarg);
-    safe_fprintf(stderr, "Use: keyboard, mouse, or both\n");
+    safe_fprintf(stderr, "Error: Invalid device '%s' for %s\n", optarg, action);
+    safe_fprintf(stderr, "Valid options: keyboard, mouse, or both\n");
     return 1;
   }
   return 0;
@@ -33,54 +33,54 @@ void print_usage(const char *program_name) {
   printf("VBX - Mechanical Keyboard Sound Simulator\n");
   printf("Version: %s\n\n", PROJECT_VERSION);
 
+  printf("DESCRIPTION:\n");
+  printf("  VBX brings realistic mechanical keyboard sounds to every keystroke.\n");
+  printf("  Run interactively or as a background daemon with live config reload.\n\n");
+
   printf("USAGE:\n");
   printf("  %s [OPTIONS]\n\n", program_name);
 
-  printf("SOUND CONTROL:\n");
-  printf("  -S, --sound PACK         Keyboard sound pack (default: eg-oreo)\n");
-  printf("  -M, --mouse PACK         Mouse sound pack (default: ping)\n");
-  printf("  -l, --list               List available sound packs\n\n");
+  printf("SOUND PACKS:\n");
+  printf("  -S, --sound PACK         Choose keyboard sound pack\n");
+  printf("  -M, --mouse PACK         Choose mouse sound pack\n");
+  printf("  -l, --list               Show available sound packs\n\n");
 
   printf("VOLUME CONTROL:\n");
-  printf(
-      "  -V, --volume LEVEL       Set both keyboard & mouse volume [0-100]\n");
-  printf("  -K, --keyboard-volume    Set keyboard volume [0-100]\n");
-  printf("  -O, --mouse-volume       Set mouse volume [0-100]\n\n");
+  printf("  -V, --volume LEVEL       Set volume for both devices [0-100]\n");
+  printf("  -K, --keyboard-volume    Set keyboard volume only [0-100]\n");
+  printf("  -O, --mouse-volume       Set mouse volume only [0-100]\n\n");
 
-  printf("MUTE CONTROL:\n");
-  printf("  -m, --mute[=DEVICE]      Mute sounds (keyboard|mouse|both)\n");
-  printf("  -u, --unmute[=DEVICE]    Unmute sounds (keyboard|mouse|both)\n\n");
+  printf("AUDIO CONTROL:\n");
+  printf("  -m, --mute[=DEVICE]      Mute audio (keyboard|mouse|both)\n");
+  printf("  -u, --unmute[=DEVICE]    Unmute audio (keyboard|mouse|both)\n");
+  printf("  --enable[=DEVICE]        Enable device sounds (keyboard|mouse|both)\n");
+  printf("  --disable[=DEVICE]       Disable device sounds (keyboard|mouse|both)\n\n");
 
-  printf("ENABLE/DISABLE:\n");
-  printf("  --enable[=DEVICE]        Enable sounds (keyboard|mouse|both)\n");
-  printf("  --disable[=DEVICE]       Disable sounds (keyboard|mouse|both)\n\n");
-
-  printf("DAEMON CONTROL:\n");
-  printf("  -d, --daemon             Run in background\n");
+  printf("DAEMON MODE:\n");
+  printf("  -d, --daemon             Run in background with auto-reload\n");
   printf("  -s, --stop               Stop background daemon\n\n");
 
-  printf("OTHER:\n");
-  printf("  -v, --verbose            Enable verbose output\n");
-  printf("  -h, --help               Show this help\n\n");
+  printf("OTHER OPTIONS:\n");
+  printf("  -v, --verbose            Show detailed output\n");
+  printf("  -h, --help               Show this help message\n\n");
 
-  printf("EXAMPLES:\n");
-  printf("  %s --list                                    # List sound packs\n",
+  printf("QUICK EXAMPLES:\n");
+  printf("  %s --list                                    # Browse sound packs\n",
          program_name);
-  printf("  %s -S cherrymx-blue -V 75                   # Cherry MX Blue at "
-         "75%%\n",
+  printf("  %s -S cherrymx-blue -V 75                   # Cherry MX Blue at 75%%\n",
          program_name);
-  printf("  %s --daemon                                  # Run in background\n",
+  printf("  %s --daemon                                  # Start background service\n",
          program_name);
-  printf("  %s --mute keyboard                          # Mute only keyboard\n",
+  printf("  %s --mute keyboard                          # Mute keyboard only\n",
          program_name);
-  printf(
-      "  %s --disable mouse                          # Disable mouse sounds\n",
-      program_name);
+  printf("  %s --disable mouse                          # Disable mouse sounds\n",
+         program_name);
   printf("  %s --keyboard-volume 80 --mouse-volume 60    # Different volumes\n",
          program_name);
   printf("\n");
-  printf("CONFIG: Settings are saved to ~/.vbx.json and auto-reload in "
-         "daemon mode.\n");
+  printf("CONFIGURATION:\n");
+  printf("  Settings are saved to ~/.vbx.json and auto-reload in daemon mode.\n");
+  printf("  Use --list to see available sound packs and their sources.\n");
 }
 
 int parse_cli(int argc, char **argv, CliOptions *out) {
@@ -126,7 +126,7 @@ int parse_cli(int argc, char **argv, CliOptions *out) {
             (n == 4 && strncmp(a, "help", 4) == 0) ||
             (n == 7 && strncmp(a, "verbose", 7) == 0))) {
         safe_fprintf(stderr, "Error: Unknown option '%s'\n", argv[i]);
-        safe_fprintf(stderr, "Use '%s --help' for available options.\n", argv[0]);
+        safe_fprintf(stderr, "Run '%s --help' to see available options.\n", argv[0]);
         return 1;
       }
     }

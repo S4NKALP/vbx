@@ -21,7 +21,7 @@ volatile sig_atomic_t reload_requested = 0;
 void cleanup_processes(int sig) {
   (void)sig;
   if (!is_daemon) {
-    printf("\nShutting down VBX...\n");
+    printf("\nShutting down VBX daemon...\n");
   }
   if (sound_pid > 0) {
     kill(sound_pid, SIGTERM);
@@ -42,7 +42,7 @@ int require_running_pid(pid_t *out_pid) {
   pid_t running_pid = 0;
   if (!read_pidfile(pidfile_path, &running_pid) ||
       !process_is_running(running_pid)) {
-    fprintf(stderr, "VBX: not running.\n");
+    fprintf(stderr, "VBX daemon is not running.\n");
     return 0;
   }
   *out_pid = running_pid;

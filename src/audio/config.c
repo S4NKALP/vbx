@@ -36,7 +36,7 @@ static void get_full_path(char *buffer, size_t buffer_size,
 int load_sound_config(const char *config_path) {
   FILE *file = fopen(config_path, "r");
   if (!file) {
-    safe_fprintf(stderr, "Error: Cannot open config file: %s\n", config_path);
+    safe_fprintf(stderr, "Error: Cannot open sound pack config: %s\n", config_path);
     perror("fopen");
     return -1;
   }
@@ -69,7 +69,8 @@ int load_sound_config(const char *config_path) {
   json_object *root = json_tokener_parse(json_string);
   free(json_string);
   if (!root) {
-    safe_fprintf(stderr, "Error: Invalid JSON in config file\n");
+    safe_fprintf(stderr, "Error: Invalid JSON in sound pack config\n");
+    safe_fprintf(stderr, "Check that the config.json file is properly formatted.\n");
     return -1;
   }
   const char *key_type = "single";

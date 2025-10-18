@@ -141,10 +141,12 @@ int validate_keyboard_sound_pack(const char *sound_name) {
                        basedir, sound_name) >= sizeof(config_path)) {
     fprintf(stderr, "Error: Sound pack path too long: %s/%s\n", basedir,
             sound_name);
+    fprintf(stderr, "Try using a shorter sound pack name.\n");
     return 0;
   }
   if (access(config_path, R_OK) != 0) {
-    fprintf(stderr, "Error: Config file not found: %s\n", config_path);
+    fprintf(stderr, "Error: Sound pack config not found: %s\n", config_path);
+    fprintf(stderr, "Make sure the sound pack directory contains a valid config.json file.\n");
     return 0;
   }
   return 1;
@@ -164,10 +166,12 @@ int validate_mouse_sound_pack(const char *sound_name) {
                        basedir, sound_name) >= sizeof(config_path)) {
     fprintf(stderr, "Error: Sound pack path too long: %s/%s\n", basedir,
             sound_name);
+    fprintf(stderr, "Try using a shorter sound pack name.\n");
     return 0;
   }
   if (access(config_path, R_OK) != 0) {
-    fprintf(stderr, "Error: Config file not found: %s\n", config_path);
+    fprintf(stderr, "Error: Sound pack config not found: %s\n", config_path);
+    fprintf(stderr, "Make sure the sound pack directory contains a valid config.json file.\n");
     return 0;
   }
   return 1;
@@ -196,10 +200,10 @@ int list_sound_packs(void) {
 
   printf("Available Sound Packs\n");
   printf("=====================\n\n");
-  printf("KEYBOARD SOUNDS:\n");
-  printf("----------------\n");
-  printf("%-25s %-12s\n", "Name", "Source");
-  printf("%-25s %-12s\n", "----", "------");
+  printf("\nKEYBOARD SOUND PACKS:\n");
+  printf("======================\n");
+  printf("%-30s %-15s\n", "Pack Name", "Source");
+  printf("%-30s %-15s\n", "---------", "------");
   if (user_keyboard_dir[0] && (dir = opendir(user_keyboard_dir)) != NULL) {
     while ((entry = readdir(dir)) != NULL) {
       if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
@@ -211,7 +215,7 @@ int list_sound_packs(void) {
         continue;
       }
       if (stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
-        printf("%-25s %-12s\n", entry->d_name, "user");
+        printf("%-30s %-15s\n", entry->d_name, "user");
       }
     }
     closedir(dir);
@@ -228,15 +232,15 @@ int list_sound_packs(void) {
         continue;
       }
       if (stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
-        printf("%-25s %-12s\n", entry->d_name, "pre-installed");
+        printf("%-30s %-15s\n", entry->d_name, "system");
       }
     }
     closedir(dir);
   }
-  printf("\nMOUSE SOUNDS:\n");
-  printf("-------------\n");
-  printf("%-25s %-12s\n", "Name", "Source");
-  printf("%-25s %-12s\n", "----", "------");
+  printf("\nMOUSE SOUND PACKS:\n");
+  printf("==================\n");
+  printf("%-30s %-15s\n", "Pack Name", "Source");
+  printf("%-30s %-15s\n", "---------", "------");
   if (user_mouse_dir[0] && (dir = opendir(user_mouse_dir)) != NULL) {
     while ((entry = readdir(dir)) != NULL) {
       if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
@@ -248,7 +252,7 @@ int list_sound_packs(void) {
         continue;
       }
       if (stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
-        printf("%-25s %-12s\n", entry->d_name, "user");
+        printf("%-30s %-15s\n", entry->d_name, "user");
       }
     }
     closedir(dir);
@@ -265,10 +269,11 @@ int list_sound_packs(void) {
         continue;
       }
       if (stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
-        printf("%-25s %-12s\n", entry->d_name, "pre-installed");
+        printf("%-30s %-15s\n", entry->d_name, "system");
       }
     }
     closedir(dir);
   }
+  printf("\nUsage: vbx -S <pack-name> for keyboard or vbx -M <pack-name> for mouse\n");
   return 0;
 }
