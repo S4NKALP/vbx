@@ -1,5 +1,11 @@
-#include "utils.h"
+#include "common/utils.h"
 #include <errno.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
 #include <fcntl.h>
 #include <getopt.h>
 #include <libevdev/libevdev.h>
@@ -7,11 +13,6 @@
 #include <libudev.h>
 #include <poll.h>
 #include <pthread.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
 
 #include "config.h"

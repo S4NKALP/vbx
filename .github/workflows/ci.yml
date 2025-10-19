@@ -1,3 +1,4 @@
+
 name: build-and-test
 
 concurrency:
@@ -35,27 +36,27 @@ jobs:
 
       - name: Prepare data dir for runtime
         run: |
-          mkdir -p "$PWD/share/keyvibe"
-          cp -r audio "$PWD/share/keyvibe/"
+          mkdir -p "$PWD/share/vbx"
+          cp -r audio "$PWD/share/vbx/"
 
       - name: List sound packs
-        run: ./keyvibe --list
+        run: ./vbx --list
 
       - name: Smoke test help
-        run: ./keyvibe --help || true
+        run: ./vbx --help || true
 
       - name: Extra smoke tests (non-fatal)
         run: |
-          ./keyvibe --reload || true
-          ./keyvibe --stop || true
+          ./vbx --reload || true
+          ./vbx --stop || true
 
       - name: Upload binaries
         uses: actions/upload-artifact@v4
         with:
-          name: keyvibe-binaries
+          name: vbx-binaries
           path: |
-            keyvibe
-            keyvibe-audio
-            keyvibe-input
+            vbx
+            vbx-audio
+            vbx-input
 
 
