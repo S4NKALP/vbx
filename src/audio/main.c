@@ -1,4 +1,5 @@
 #define _XOPEN_SOURCE 500
+#include "audio/config.h"
 #include "audio/playback.h"
 #include "audio/types.h"
 #include "common/utils.h"
@@ -17,8 +18,6 @@ int g_keyboard_enabled = 1;
 int g_mouse_enabled = 1;
 int g_system_volume_following = 0;
 float g_system_volume_multiplier = 1.0f;
-
-int load_sound_config(const char *config_path);
 
 // Generic function to read runtime state files
 static int read_runtime_state(const char *filename_suffix, int default_value) {
@@ -93,98 +92,86 @@ void *system_volume_poller_thread(void *arg) {
     } else {
       g_system_volume_multiplier = 1.0f;
     }
-    usleep(500000); // 500ms
+    struct timespec ts = {0, 500000000L};
+    nanosleep(&ts, NULL); // 500ms
   }
   return NULL;
 }
 
 int main(int argc, char *argv[]) {
   if (argc < 2 || argc > 12) {
-    safe_fprintf(stderr,
-            "Usage: %s <config.json> [volume] [verbose] [mute] [mouse_config] "
-            "[mouse_volume] [keyboard_mute] [mouse_mute] [keyboard_enabled] "
-            "[mouse_enabled] [system_volume_following]\n",
-            argv[0]);
-    safe_fprintf(stderr, "  volume: 0-100 (default: 50)\n");
-    safe_fprintf(stderr, "  verbose: 1 to enable verbose output (default: 0)\n");
-    safe_fprintf(stderr, "  mute: 1 to mute all sound (default: 0)\n");
-    safe_fprintf(stderr, "  mouse_config: path to mouse config.json (optional)\n");
-    safe_fprintf(stderr, "  mouse_volume: 0-100 for mouse volume (optional)\n");
-    safe_fprintf(stderr, "  keyboard_mute: 1 to mute keyboard sounds (optional)\n");
-    safe_fprintf(stderr, "  mouse_mute: 1 to mute mouse sounds (optional)\n");
-    safe_fprintf(stderr,
-            "  keyboard_enabled: 1 to enable keyboard sounds (optional)\n");
-    safe_fprintf(stderr, "  mouse_enabled: 1 to enable mouse sounds (optional)\n");
+    LOG_ERROR("Usage: %s <config.json> [volume] [verbose] [mute] [mouse_config] "
+              "[mouse_volume] [keyboard_mute] [mouse_mute] [keyboard_enabled] "
+              "[mouse_enabled] [system_volume_following]",
+              argv[0]);
+    LOG_ERROR("  volume: 0-100 (default: 50)");
+    LOG_ERROR("  verbose: 1 to enable verbose output (default: 0)");
+    LOG_ERROR("  mute: 1 to mute all sound (default: 0)");
+    LOG_ERROR("  mouse_config: path to mouse config.json (optional)");
+    LOG_ERROR("  mouse_volume: 0-100 for mouse volume (optional)");
+    LOG_ERROR("  keyboard_mute: 1 to mute keyboard sounds (optional)");
+    LOG_ERROR("  mouse_mute: 1 to mute mouse sounds (optional)");
+    LOG_ERROR("  keyboard_enabled: 1 to enable keyboard sounds (optional)");
+    LOG_ERROR("  mouse_enabled: 1 to enable mouse sounds (optional)");
     return 1;
   }
   if (argc >= 3) {
     int volume_percent = validate_volume(atoi(argv[2]));
     g_volume = volume_percent / 100.0f;
-    if (g_verbose)
-      printf("Volume set to: %d%%\n", volume_percent);
+    LOG_DEBUG("Volume set to: %d%%", volume_percent);
   } else {
-    if (g_verbose)
-      printf("Volume set to: 50%% (default)\n");
+    LOG_DEBUG("Volume set to: 50%% (default)");
   }
   if (argc >= 4) {
     g_verbose = atoi(argv[3]);
     if (g_verbose) {
-      printf("Verbose mode enabled\n");
+      LOG_INFO("Verbose mode enabled");
     }
   }
   if (argc >= 5) {
     g_mute = atoi(argv[4]);
     if (g_mute) {
-      printf("Sound muted\n");
+      LOG_INFO("Sound muted");
     }
   }
   if (argc >= 6) {
-    if (load_sound_config(argv[5]) != 0) {
-      safe_fprintf(stderr, "Failed to load mouse sound configuration\n");
+    if (load_sound_config(argv[5], &g_mouse_sound_pack) != 0) {
+      LOG_ERROR("Failed to load mouse sound configuration");
       return 1;
     }
-    g_mouse_sound_pack = g_sound_pack;
-    if (g_verbose) {
-      printf("Mouse sound pack loaded from: %s\n", argv[5]);
-    }
+    LOG_DEBUG("Mouse sound pack loaded from: %s", argv[5]);
   }
   if (argc >= 7) {
     int mouse_volume_percent = validate_volume(atoi(argv[6]));
     g_mouse_volume = mouse_volume_percent / 100.0f;
-    if (g_verbose)
-      printf("Mouse volume set to: %d%%\n", mouse_volume_percent);
+    LOG_DEBUG("Mouse volume set to: %d%%", mouse_volume_percent);
   }
   if (argc >= 8) {
     g_keyboard_mute = atoi(argv[7]);
-    if (g_verbose)
-      printf("Keyboard mute: %s\n", g_keyboard_mute ? "enabled" : "disabled");
+    LOG_DEBUG("Keyboard mute: %s", g_keyboard_mute ? "enabled" : "disabled");
   }
   if (argc >= 9) {
     g_mouse_mute = atoi(argv[8]);
-    if (g_verbose)
-      printf("Mouse mute: %s\n", g_mouse_mute ? "enabled" : "disabled");
+    LOG_DEBUG("Mouse mute: %s", g_mouse_mute ? "enabled" : "disabled");
   }
   if (argc >= 10) {
     g_keyboard_enabled = atoi(argv[9]);
-    if (g_verbose)
-      printf("Keyboard enabled: %s\n", g_keyboard_enabled ? "yes" : "no");
+    LOG_DEBUG("Keyboard enabled: %s", g_keyboard_enabled ? "yes" : "no");
   }
   if (argc >= 11) {
     g_mouse_enabled = atoi(argv[10]);
-    if (g_verbose)
-      printf("Mouse enabled: %s\n", g_mouse_enabled ? "yes" : "no");
+    LOG_DEBUG("Mouse enabled: %s", g_mouse_enabled ? "yes" : "no");
   }
   if (argc >= 12) {
     g_system_volume_following = atoi(argv[11]);
-    if (g_verbose)
-      printf("System volume following: %s\n", g_system_volume_following ? "yes" : "no");
+    LOG_DEBUG("System volume following: %s", g_system_volume_following ? "yes" : "no");
   }
-  if (load_sound_config(argv[1]) != 0) {
-    safe_fprintf(stderr, "Failed to load keyboard sound configuration\n");
+  if (load_sound_config(argv[1], &g_sound_pack) != 0) {
+    LOG_ERROR("Failed to load keyboard sound configuration");
     return 1;
   }
   if (init_audio() != 0) {
-    safe_fprintf(stderr, "Failed to initialize audio\n");
+    LOG_ERROR("Failed to initialize audio");
     return 1;
   }
   
@@ -212,12 +199,9 @@ int main(int argc, char *argv[]) {
       if (errno == EINTR) {
         continue;
       }
-      perror("select");
+      LOG_PERROR("select");
       break;
     } else if (ready == 0) {
-      if (g_verbose) {
-        printf("Waiting for input...\n");
-      }
       continue;
     }
     if (FD_ISSET(STDIN_FILENO, &readfds)) {
@@ -226,7 +210,7 @@ int main(int argc, char *argv[]) {
         if (feof(stdin)) {
           LOG_DEBUG("EOF reached on stdin");
         } else {
-          perror("fread");
+          LOG_PERROR("fread");
         }
         break;
       }

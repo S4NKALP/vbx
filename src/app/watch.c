@@ -1,6 +1,7 @@
 #include "app/watch.h"
-#include "common/utils.h"
 #include "app/process.h"
+#include "common/log.h"
+#include "common/utils.h"
 #include <errno.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -17,18 +18,17 @@ static void *inotify_thread_fn(void *arg) {
   struct inotify_thread_args *a = (struct inotify_thread_args *)arg;
   int fd = inotify_init1(IN_NONBLOCK);
   if (fd < 0) {
-    printf("Failed to initialize inotify: %s\n", strerror(errno));
+    LOG_PERROR("Failed to initialize inotify");
     return NULL;
   }
   int wd = inotify_add_watch(
       fd, a->path, IN_CLOSE_WRITE | IN_MOVED_TO | IN_ATTRIB | IN_MODIFY);
   if (wd < 0) {
-    printf("Failed to add inotify watch for %s: %s\n", a->path,
-           strerror(errno));
+    LOG_PERROR("Failed to add inotify watch");
     close(fd);
     return NULL;
   }
-  printf("Watching config file: %s\n", a->path);
+  LOG_INFO("Watching config file: %s", a->path);
   char buf[4096] __attribute__((aligned(__alignof__(struct inotify_event))));
   while (1) {
     ssize_t len = read(fd, buf, sizeof(buf));
@@ -40,10 +40,10 @@ static void *inotify_thread_fn(void *arg) {
         nanosleep(&ts, NULL);
         continue;
       }
-      printf("inotify read error: %s\n", strerror(errno));
+      LOG_PERROR("inotify read error");
       break;
     }
-    printf("Config file changed, requesting reload...\n");
+    LOG_INFO("Config file changed, requesting reload...");
     handle_sighup(0);
   }
   inotify_rm_watch(fd, wd);
@@ -60,7 +60,7 @@ int start_config_watcher(const char *path) {
     pthread_detach(inotify_thread);
     return 1;
   } else {
-    printf("Warning: Config file %s does not exist, file watching disabled\n",
+    LOG_WARN("Warning: Config file %s does not exist, file watching disabled",
            in_args.path);
     return 0;
   }

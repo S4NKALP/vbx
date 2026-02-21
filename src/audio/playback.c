@@ -1,3 +1,4 @@
+#define _DEFAULT_SOURCE
 #include "audio/playback.h"
 #include "audio/types.h"
 #include "common/utils.h"
@@ -10,10 +11,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <math.h>
 
-pthread_t sound_threads[MAX_CONCURRENT_SOUNDS];
-volatile int thread_active[MAX_CONCURRENT_SOUNDS] = {0};
-pthread_mutex_t thread_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pa_simple *g_pa_handle = NULL;
+static AudioVoice g_mixer_voices[MAX_MIXER_VOICES] = {0};
+static pthread_mutex_t g_mixer_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_t g_mixer_thread;
+static volatile int g_mixer_running = 0;
 
 static inline float get_boosted_system_volume(float vol_multiplier) {
   if (vol_multiplier >= 1.0f) return vol_multiplier;
@@ -22,236 +26,145 @@ static inline float get_boosted_system_volume(float vol_multiplier) {
   return 1.0f - (inv * inv * inv);
 }
 
-int init_audio() {
-  if (g_sound_pack.is_multi)
-    return 0;
-  if (strlen(g_sound_pack.sound_file) == 0) {
-    LOG_ERROR("No sound file specified in sound pack config");
-    LOG_ERROR("Check that your sound pack has a valid config.json file.");
-    return -1;
-  }
-  if (access(g_sound_pack.sound_file, R_OK) != 0) {
-    LOG_ERROR("Sound file not accessible: %s", g_sound_pack.sound_file);
-    perror("access");
-    return -1;
-  }
-  SNDFILE *test_sf =
-      sf_open(g_sound_pack.sound_file, SFM_READ, &g_sound_pack.sf_info);
-  if (!test_sf) {
-    LOG_ERROR("Could not open sound file: %s", g_sound_pack.sound_file);
-    LOG_ERROR("libsndfile error: %s", sf_strerror(NULL));
-    return -1;
-  }
-  sf_close(test_sf);
-  LOG_DEBUG("Sound file info: %ld frames, %d channels, %d Hz",
-         (long)g_sound_pack.sf_info.frames, g_sound_pack.sf_info.channels,
-         g_sound_pack.sf_info.samplerate);
-  return 0;
-}
-
-void *play_sound_thread(void *arg) {
-  PlaybackData *data = (PlaybackData *)arg;
-  int key_code = data->key_code;
-  int thread_id = data->thread_id;
-  int is_pressed = data->is_pressed;
-  const char *file_to_play = NULL;
-
-  int is_mouse_event = (key_code == 272 || key_code == 273 || key_code == 274);
-  SoundPack *sound_pack = is_mouse_event ? &g_mouse_sound_pack : &g_sound_pack;
-  float volume = is_mouse_event ? g_mouse_volume : g_volume;
-  int mute_state = is_mouse_event ? g_mouse_mute : g_keyboard_mute;
-
-  LOG_DEBUG("Thread %d: Playing %s sound for key %d (%s)", thread_id,
-         is_mouse_event ? "mouse" : "keyboard", key_code,
-         is_pressed ? "press" : "release");
-
-  if (g_mute || mute_state) {
-    LOG_DEBUG("Thread %d: %s sound is muted", thread_id,
-           is_mouse_event ? "Mouse" : "Keyboard");
-    goto exit_cleanup;
-  }
-  if (sound_pack->is_multi) {
-    if (is_pressed && sound_pack->multi_key_mappings[key_code].press)
-      file_to_play = sound_pack->multi_key_mappings[key_code].press;
-    else if (!is_pressed && sound_pack->multi_key_mappings[key_code].release)
-      file_to_play = sound_pack->multi_key_mappings[key_code].release;
-    else if (is_pressed && sound_pack->num_generic_press_files > 0) {
-      int idx = rand() % sound_pack->num_generic_press_files;
-      file_to_play = sound_pack->generic_press_files[idx];
-    } else if (!is_pressed && strlen(sound_pack->release_file) > 0)
-      file_to_play = sound_pack->release_file;
-    if (!file_to_play) {
-      LOG_DEBUG("Thread %d: No sound file found for key %d (%s)", thread_id,
-             key_code, is_pressed ? "press" : "release");
-      goto exit_cleanup;
-    }
-    LOG_DEBUG("Thread %d: Using sound file: %s", thread_id, file_to_play);
-    SF_INFO sf_info = {0};
-    SNDFILE *sf = sf_open(file_to_play, SFM_READ, &sf_info);
-    if (!sf) {
-      LOG_ERROR("Could not open sound file: %s", file_to_play);
-      LOG_ERROR("Details: %s", sf_strerror(NULL));
-      LOG_ERROR("Check that the audio file exists and is readable.");
-      goto exit_cleanup;
-    }
-    pa_sample_spec ss = {.format = PA_SAMPLE_S16LE,
-                         .rate = sf_info.samplerate,
-                         .channels = sf_info.channels};
-    int pa_error;
-    pa_simple *pa_handle =
-        pa_simple_new(NULL, "KeyboardSounds", PA_STREAM_PLAYBACK, NULL,
-                      "playback", &ss, NULL, NULL, &pa_error);
-    if (!pa_handle) {
-      LOG_ERROR("Could not initialize PulseAudio: %s", pa_strerror(pa_error));
-      sf_close(sf);
-      goto exit_cleanup;
-    }
-    int frames = 2048;
-    short *buffer = malloc(frames * sf_info.channels * sizeof(short));
-    if (!buffer) {
-      pa_simple_free(pa_handle);
-      sf_close(sf);
-      goto exit_cleanup;
-    }
-    sf_count_t read;
-    while ((read = sf_readf_short(sf, buffer, frames)) > 0) {
-      float vol_mult = volume * get_boosted_system_volume(g_system_volume_multiplier);
-      for (sf_count_t i = 0; i < read * sf_info.channels; i++) {
-        buffer[i] = (short)(buffer[i] * vol_mult);
+void *mixer_thread_func(void *arg) {
+  (void)arg;
+  const int chunk_frames = 512;
+  const int channels = g_sound_pack.sf_info.channels ? g_sound_pack.sf_info.channels : 2;
+  short *mix_buffer = malloc(chunk_frames * channels * sizeof(short));
+  
+  while (g_mixer_running) {
+    memset(mix_buffer, 0, chunk_frames * channels * sizeof(short));
+    int any_active = 0;
+    
+    pthread_mutex_lock(&g_mixer_mutex);
+    float sys_vol = get_boosted_system_volume(g_system_volume_multiplier);
+    
+    for (int i = 0; i < MAX_MIXER_VOICES; i++) {
+      if (!g_mixer_voices[i].active) continue;
+      any_active = 1;
+      
+      uint32_t samples_to_copy = chunk_frames * channels;
+      if (g_mixer_voices[i].current_pos + samples_to_copy > g_mixer_voices[i].total_samples) {
+        samples_to_copy = g_mixer_voices[i].total_samples - g_mixer_voices[i].current_pos;
       }
-      int pa_write_error;
-      if (pa_simple_write(pa_handle, buffer,
-                          read * sf_info.channels * sizeof(short),
-                          &pa_write_error) < 0) {
-        LOG_ERROR("PulseAudio write error: %s", pa_strerror(pa_write_error));
-        break;
+      
+      float vol = g_mixer_voices[i].volume * sys_vol;
+      for (uint32_t s = 0; s < samples_to_copy; s++) {
+        int32_t mixed = mix_buffer[s] + (int32_t)(g_mixer_voices[i].data[g_mixer_voices[i].current_pos + s] * vol);
+        // Clip
+        if (mixed > 32767) mixed = 32767;
+        else if (mixed < -32768) mixed = -32768;
+        mix_buffer[s] = (short)mixed;
+      }
+      
+      g_mixer_voices[i].current_pos += samples_to_copy;
+      if (g_mixer_voices[i].current_pos >= g_mixer_voices[i].total_samples) {
+        g_mixer_voices[i].active = 0;
       }
     }
-    int pa_drain_error;
-    pa_simple_drain(pa_handle, &pa_drain_error);
-    pa_simple_free(pa_handle);
-    sf_close(sf);
-    free(buffer);
-  } else {
-    if (key_code >= 512 ||
-        sound_pack->key_mappings[key_code].duration_ms == 0) {
-      LOG_DEBUG("Thread %d: No mapping for key %d", thread_id, key_code);
-      goto exit_cleanup;
+    pthread_mutex_unlock(&g_mixer_mutex);
+    
+    if (any_active) {
+      int pa_error;
+      if (pa_simple_write(g_pa_handle, mix_buffer, chunk_frames * channels * sizeof(short), &pa_error) < 0) {
+        LOG_ERROR("PulseAudio write error: %s", pa_strerror(pa_error));
+      }
+    } else {
+      // Nothing playing, sleep a bit to avoid CPU spin
+      struct timespec ts = {0, 10000000L};
+      nanosleep(&ts, NULL); // 10ms
     }
-    SoundMapping *mapping = &sound_pack->key_mappings[key_code];
-    SF_INFO sf_info = sound_pack->sf_info;
-    SNDFILE *sf = sf_open(sound_pack->sound_file, SFM_READ, &sf_info);
-    if (!sf) {
-      LOG_ERROR("Thread: Could not open sound file");
-      goto exit_cleanup;
-    }
-    pa_sample_spec ss = {.format = PA_SAMPLE_S16LE,
-                         .rate = sf_info.samplerate,
-                         .channels = sf_info.channels};
-    int pa_error;
-    pa_simple *pa_handle =
-        pa_simple_new(NULL, "KeyboardSounds", PA_STREAM_PLAYBACK, NULL,
-                      "playback", &ss, NULL, NULL, &pa_error);
-    if (!pa_handle) {
-      sf_close(sf);
-      LOG_ERROR("Thread: Could not initialize PulseAudio: %s", pa_strerror(pa_error));
-      goto exit_cleanup;
-    }
-    sf_count_t start_frame = (mapping->start_ms * sf_info.samplerate) / 1000;
-    sf_count_t duration_frames =
-        (mapping->duration_ms * sf_info.samplerate) / 1000;
-    sf_seek(sf, start_frame, SEEK_SET);
-    short *buffer = malloc(duration_frames * sf_info.channels * sizeof(short));
-    if (!buffer) {
-      pa_simple_free(pa_handle);
-      sf_close(sf);
-      goto exit_cleanup;
-    }
-    sf_count_t frames_read = sf_readf_short(sf, buffer, duration_frames);
-    float vol_mult = volume * get_boosted_system_volume(g_system_volume_multiplier);
-    for (sf_count_t i = 0; i < frames_read * sf_info.channels; i++) {
-      buffer[i] = (short)(buffer[i] * vol_mult);
-    }
-    int pa_write_error, pa_drain_error;
-    pa_simple_write(pa_handle, buffer,
-                    frames_read * sf_info.channels * sizeof(short),
-                    &pa_write_error);
-    pa_simple_drain(pa_handle, &pa_drain_error);
-    free(buffer);
-    pa_simple_free(pa_handle);
-    sf_close(sf);
   }
-exit_cleanup:
-  pthread_mutex_lock(&thread_mutex);
-  thread_active[thread_id] = 0;
-  pthread_mutex_unlock(&thread_mutex);
-  free(data);
+  
+  free(mix_buffer);
   return NULL;
 }
 
-int find_available_thread_slot() {
-  pthread_mutex_lock(&thread_mutex);
-  for (int i = 0; i < MAX_CONCURRENT_SOUNDS; i++) {
-    if (!thread_active[i]) {
-      pthread_mutex_unlock(&thread_mutex);
-      return i;
-    }
+int init_audio() {
+  // Use keyboard pack as reference for samplerate/channels
+  pa_sample_spec ss = {
+    .format = PA_SAMPLE_S16LE,
+    .rate = g_sound_pack.sf_info.samplerate ? g_sound_pack.sf_info.samplerate : 44100,
+    .channels = g_sound_pack.sf_info.channels ? g_sound_pack.sf_info.channels : 2
+  };
+  
+  int pa_error;
+  g_pa_handle = pa_simple_new(NULL, "vbx", PA_STREAM_PLAYBACK, NULL, "clicks", &ss, NULL, NULL, &pa_error);
+  if (!g_pa_handle) {
+    LOG_ERROR("Could not initialize PulseAudio stream: %s", pa_strerror(pa_error));
+    return -1;
   }
-  pthread_mutex_unlock(&thread_mutex);
-  return -1;
+  
+  g_mixer_running = 1;
+  if (pthread_create(&g_mixer_thread, NULL, mixer_thread_func, NULL) != 0) {
+    LOG_ERROR("Failed to create mixer thread");
+    return -1;
+  }
+  
+  return 0;
 }
 
 void play_sound_segment(int key_code, int is_pressed) {
-  if (g_mute) {
-    LOG_DEBUG("Sound muted - ignoring key %d (%s)", key_code,
-           is_pressed ? "press" : "release");
-    return;
-  }
+  if (g_mute) return;
+  
+  int is_mouse = (key_code == 272 || key_code == 273 || key_code == 274);
+  int device_enabled = is_mouse ? g_mouse_enabled : g_keyboard_enabled;
+  if (!device_enabled) return;
 
-  // Check if this is a mouse event and if mouse is disabled
-  int is_mouse_event = (key_code == 272 || key_code == 273 || key_code == 274);
-  if (is_mouse_event) {
-    // For mouse events, we need to check if mouse is enabled
-    // This will be handled by the main loop passing enabled state
-    // For now, we'll add a simple check here
-    extern int g_mouse_enabled;
-    if (!g_mouse_enabled) {
-      LOG_DEBUG("Mouse sounds disabled - ignoring mouse event %d", key_code);
-      return;
+  SoundPack *pack = is_mouse ? &g_mouse_sound_pack : &g_sound_pack;
+  float volume = is_mouse ? g_mouse_volume : g_volume;
+  int device_mute = is_mouse ? g_mouse_mute : g_keyboard_mute;
+  
+  if (device_mute) return;
+  
+  short *pcm_data = NULL;
+  uint32_t num_samples = 0;
+  
+  if (pack->is_multi) {
+    if (is_pressed) {
+      if (pack->multi_key_mappings[key_code].press_data) {
+        pcm_data = pack->multi_key_mappings[key_code].press_data;
+        num_samples = pack->multi_key_mappings[key_code].press_samples;
+      } else if (pack->num_generic_press_files > 0) {
+        int idx = rand() % pack->num_generic_press_files;
+        pcm_data = pack->generic_press_data[idx];
+        num_samples = pack->generic_press_samples[idx];
+      }
+    } else {
+      if (pack->multi_key_mappings[key_code].release_data) {
+        pcm_data = pack->multi_key_mappings[key_code].release_data;
+        num_samples = pack->multi_key_mappings[key_code].release_samples;
+      } else if (pack->release_data) {
+        pcm_data = pack->release_data;
+        num_samples = pack->release_samples;
+      }
     }
   } else {
-    // For keyboard events, check if keyboard is enabled
-    extern int g_keyboard_enabled;
-    if (!g_keyboard_enabled) {
-      LOG_DEBUG("Keyboard sounds disabled - ignoring key %d", key_code);
-      return;
+    if (is_pressed && key_code < 512) {
+      pcm_data = pack->key_mappings[key_code].pcm_data;
+      num_samples = pack->key_mappings[key_code].num_samples;
     }
   }
-  if (!g_sound_pack.is_multi && !is_pressed) {
-    LOG_DEBUG("Single mode: Ignoring key release for key %d", key_code);
-    return;
+  
+  if (!pcm_data || num_samples == 0) return;
+  
+  // Find a slot in the mixer
+  pthread_mutex_lock(&g_mixer_mutex);
+  int found = 0;
+  for (int i = 0; i < MAX_MIXER_VOICES; i++) {
+    if (!g_mixer_voices[i].active) {
+      g_mixer_voices[i].data = pcm_data;
+      g_mixer_voices[i].total_samples = num_samples;
+      g_mixer_voices[i].current_pos = 0;
+      g_mixer_voices[i].volume = volume;
+      g_mixer_voices[i].active = 1;
+      found = 1;
+      break;
+    }
   }
-  int slot = find_available_thread_slot();
-  if (slot == -1) {
-    LOG_WARN("No available thread slots");
-    return;
+  pthread_mutex_unlock(&g_mixer_mutex);
+  
+  if (!found) {
+    LOG_WARN("Mixer full, dropping sound");
   }
-  PlaybackData *data = malloc(sizeof(PlaybackData));
-  if (!data)
-    return;
-  data->key_code = key_code;
-  data->thread_id = slot;
-  data->is_pressed = is_pressed;
-  pthread_mutex_lock(&thread_mutex);
-  thread_active[slot] = 1;
-  if (pthread_create(&sound_threads[slot], NULL, play_sound_thread, data) !=
-      0) {
-    thread_active[slot] = 0;
-    free(data);
-    LOG_ERROR("Failed to create sound thread");
-  } else {
-    pthread_detach(sound_threads[slot]);
-  }
-  pthread_mutex_unlock(&thread_mutex);
 }
-

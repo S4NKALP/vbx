@@ -1,6 +1,8 @@
+#define _POSIX_C_SOURCE 200809L
 #include "common/utils.h"
 #include "common/ipc.h"
 #include "common/log.h"
+#include <time.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -51,7 +53,7 @@ static int open_restricted(const char *path, int flags, void *user_data) {
   (void)user_data;
   int fd = open(path, flags);
   if (fd < 0)
-    errorf("Failed to open %s because of %s.\n", path, strerror(errno));
+    LOG_PERROR("Failed to open path");
   return fd < 0 ? -errno : fd;
 }
 
@@ -121,15 +123,17 @@ static int run_mainloop(struct libinput *libinput) {
   fd.fd = libinput_get_fd(libinput);
   fd.events = POLLIN;
   fd.revents = 0;
-  if (handle_events(libinput) != 0)
-    return errorf("Expected device added events on startup but got none. Maybe "
-                  "you don't have the right permissions?\n");
+  if (handle_events(libinput) != 0) {
+    LOG_ERROR("Expected device added events on startup but got none. Maybe you don't have the right permissions?");
+    return -1;
+  }
   while (1) {
-    int pr = poll(&fd, 1, -1);
+    int pr = poll(&fd, 1, 10);
     if (pr < 0) {
       if (errno == EINTR)
         continue;
-      return errorf("poll failed: %s\n", strerror(errno));
+      LOG_PERROR("poll failed");
+      return -1;
     }
     handle_events(libinput);
   }
@@ -148,7 +152,6 @@ void print_help(char *program_name) {
          "will run this.\n");
 }
 
-int g_verbose = 0;
 int is_daemon = 0;
 
 int main(int argc, char *argv[]) {
@@ -172,19 +175,23 @@ int main(int argc, char *argv[]) {
     case '?':
       break;
     default:
-      errorf("%s: Invalid option `-%c`.\n", argv[0], opt);
+      LOG_ERROR("Invalid option `-%c`.", opt);
       break;
     }
   }
   struct udev *udev = udev_new();
-  if (udev == NULL)
-    return errorf("Failed to initialize udev.\n");
+  if (udev == NULL) {
+    LOG_ERROR("Failed to initialize udev.");
+    return 1;
+  }
   struct libinput *libinput =
       libinput_udev_create_context(&interface, NULL, udev);
-  if (!libinput)
-    return errorf("Failed to initialize libinput from udev.\n");
+  if (!libinput) {
+    LOG_ERROR("Failed to initialize libinput from udev.");
+    return 1;
+  }
   if (libinput_udev_assign_seat(libinput, "seat0") != 0) {
-    errorf("Failed to set seat.\n");
+    LOG_ERROR("Failed to set seat.");
     libinput_unref(libinput);
     udev_unref(udev);
     return SEAT_FAILED;
@@ -193,7 +200,7 @@ int main(int argc, char *argv[]) {
   struct input_handler_data input_handler_data = {udev, libinput};
   if (pthread_create(&input_handler, NULL, handle_input, &input_handler_data) !=
       0) {
-    errorf("Failed to create input handler thread.\n");
+    LOG_ERROR("Failed to create input handler thread.");
   } else {
     pthread_detach(input_handler);
   }

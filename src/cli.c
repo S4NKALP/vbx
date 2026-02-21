@@ -1,4 +1,5 @@
 #include "app/cli.h"
+#include "common/log.h"
 #include "common/utils.h"
 #include "config.h"
 #include <getopt.h>
@@ -18,8 +19,8 @@ static int parse_device_argument(const char *optarg, const char *action,
   } else if (strcmp(optarg, "mouse") == 0) {
     *mouse_value = value;
   } else {
-    safe_fprintf(stderr, "Error: Invalid device '%s' for %s\n", optarg, action);
-    safe_fprintf(stderr, "Valid options: keyboard, mouse, or both\n");
+    LOG_ERROR("Error: Invalid device '%s' for %s", optarg, action);
+    LOG_ERROR("Valid options: keyboard, mouse, or both");
     return 1;
   }
   return 0;
@@ -138,9 +139,8 @@ int parse_cli(int argc, char **argv, CliOptions *out) {
             (n == 7 && strncmp(a, "disable", 7) == 0) ||
             (n == 7 && strncmp(a, "verbose", 7) == 0) ||
             (n == 23 && strncmp(a, "system-volume-following", 23) == 0))) {
-        safe_fprintf(stderr, "Error: Unknown option '%s'\n", argv[i]);
-        safe_fprintf(stderr, "Run '%s --help' to see available options.\n",
-                     argv[0]);
+        LOG_ERROR("Error: Unknown option '%s'", argv[i]);
+        LOG_ERROR("Run '%s --help' to see available options.", argv[0]);
         return 1;
       }
     }

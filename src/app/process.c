@@ -100,12 +100,12 @@ int start_children(const char *sound_dir, const char *config_path, int volume,
   (void)mouse_sound_dir;
   int pipefd[2];
   if (pipe(pipefd) == -1) {
-    LOG_ERROR("pipe: %s", strerror(errno));
+    LOG_PERROR("pipe");
     return 0;
   }
   sound_pid = fork();
   if (sound_pid == -1) {
-    LOG_ERROR("fork: %s", strerror(errno));
+    LOG_PERROR("fork");
     close(pipefd[0]);
     close(pipefd[1]);
     return 0;
@@ -141,12 +141,12 @@ int start_children(const char *sound_dir, const char *config_path, int volume,
           verbose_str, mute_str, mouse_config_path, mouse_volume_str,
           keyboard_mute_str, mouse_mute_str, keyboard_enabled_str,
           mouse_enabled_str, system_volume_following_str, (char *)NULL);
-    LOG_ERROR("execl vbx-audio: %s", strerror(errno));
+    LOG_PERROR("execl vbx-audio");
     exit(1);
   }
   keyboard_pid = fork();
   if (keyboard_pid == -1) {
-    LOG_ERROR("fork: %s", strerror(errno));
+    LOG_PERROR("fork");
     kill(sound_pid, SIGTERM);
     close(pipefd[0]);
     close(pipefd[1]);
@@ -160,7 +160,7 @@ int start_children(const char *sound_dir, const char *config_path, int volume,
     dup2(pipefd[1], STDOUT_FILENO);
     close(pipefd[1]);
     execl(get_key_presses_path, "vbx-input", (char *)NULL);
-    LOG_ERROR("execl vbx-input: %s", strerror(errno));
+    LOG_PERROR("execl vbx-input");
     exit(1);
   }
   close(pipefd[0]);
