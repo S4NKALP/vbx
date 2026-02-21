@@ -1,6 +1,6 @@
 CC = gcc
 # Updated include paths for modular headers
-CFLAGS = -Wall -Wextra -std=c99 -Iinclude -Iinclude/app -Iinclude/audio -Iinclude/common -Iinclude/sound -Iinclude/config
+CFLAGS = -Wall -Wextra -std=c99 -D_POSIX_C_SOURCE=200809L -Iinclude -Iinclude/app -Iinclude/audio -Iinclude/common -Iinclude/sound -Iinclude/config
 PREFIX ?= /usr
 
 # Pass PACKAGE_PREFIX macro for config.h
