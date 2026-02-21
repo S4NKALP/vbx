@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 #include "common/utils.h"
+#include "common/log.h"
 #include <pwd.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -7,6 +8,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
+int g_verbose = 0;
 
 int read_runtime_mute_file() {
   char mute_file[1024];
@@ -64,14 +67,6 @@ int safe_snprintf(char *dst, size_t dst_sz, const char *fmt, ...) {
   int n = vsnprintf(dst, dst_sz, fmt, ap);
   va_end(ap);
   return (n >= 0 && (size_t)n < dst_sz);
-}
-
-int errorf(const char *fmt, ...) {
-  va_list ap;
-  va_start(ap, fmt);
-  vfprintf(stderr, fmt, ap);
-  va_end(ap);
-  return 1;
 }
 
 const char *get_runtime_dir(void) {
@@ -176,7 +171,7 @@ void safe_strncpy(char *dest, const char *src, size_t dest_size) {
 // Helper to print error and close file
 void print_error_and_close_file(FILE *file, const char *error_msg, const char *filename) {
   if (file) fclose(file);
-  safe_fprintf(stderr, "Error: %s %s\n", error_msg, filename ? filename : "");
+  LOG_ERROR("Error: %s %s", error_msg, filename ? filename : "");
 }
 
 // Safe wrapper for fscanf with bounds checking
