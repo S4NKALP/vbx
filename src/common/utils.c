@@ -125,6 +125,11 @@ int write_runtime_mouse_enabled_file(int enabled) {
   return 1;
 }
 
+int write_runtime_system_volume_following_file(int enabled) {
+  write_runtime_state_file("sysvol-following", enabled);
+  return 1;
+}
+
 
 void int_to_str(char *buffer, size_t size, int value) {
   safe_snprintf_wrapper(buffer, size, "%d", value);
