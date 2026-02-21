@@ -4,6 +4,7 @@
 #include "app/process.h"
 #include "app/reload.h"
 #include "app/watch.h"
+#include "common/log.h"
 #include "common/mute.h"
 #include "common/utils.h"
 #include "config.h"
@@ -50,6 +51,7 @@ static int current_keyboard_mute = 0;
 static int current_mouse_mute = 0;
 static int current_keyboard_enabled = 1;
 static int current_mouse_enabled = 1;
+static int current_system_volume_following = 0;
 static char current_config_path[MAX_PATH_LENGTH] = {0};
 static char current_sound_dir[MAX_PATH_LENGTH] = {0};
 static char current_mouse_config_path[MAX_PATH_LENGTH] = {0};
@@ -65,23 +67,24 @@ int main(int argc, char *argv[]) {
   int list_sounds = 0;
   int flag_daemon = 0;
   int flag_stop = 0;
-  int volume = 50;
   CliOptions cli_opts;
   char user_cfg_path[MAX_PATH_LENGTH];
   if (get_user_config_path(user_cfg_path, sizeof(user_cfg_path))) {
     if (access(user_cfg_path, R_OK) == 0) {
       if (verbose) {
-        printf("Loading configuration from: %s\n", user_cfg_path);
+        LOG_INFO("Loading configuration from: %s", user_cfg_path);
       }
       char *cfg_keyboard_sound = NULL;
       char *cfg_mouse_sound = NULL;
-      int cfg_keyboard_volume = volume;
-      int cfg_mouse_volume = volume;
+      int cfg_keyboard_volume = current_keyboard_volume;
+      int cfg_mouse_volume = current_mouse_volume;
       int cfg_keyboard_enabled = 1;
       int cfg_mouse_enabled = 1;
+      int cfg_system_volume_following = 0;
       if (read_user_config(user_cfg_path, &cfg_keyboard_sound, &cfg_mouse_sound,
                            &cfg_keyboard_volume, &cfg_mouse_volume,
-                           &cfg_keyboard_enabled, &cfg_mouse_enabled)) {
+                           &cfg_keyboard_enabled, &cfg_mouse_enabled,
+                           &cfg_system_volume_following)) {
         if (cfg_keyboard_sound) {
           if (sound_name_owned) {
             free(sound_name);
@@ -96,9 +99,11 @@ int main(int argc, char *argv[]) {
           mouse_sound_name = cfg_mouse_sound;
           mouse_sound_name_owned = 1;
         }
-        volume = cfg_keyboard_volume;
+        current_keyboard_volume = cfg_keyboard_volume;
+        current_mouse_volume = cfg_mouse_volume;
         current_keyboard_enabled = cfg_keyboard_enabled;
         current_mouse_enabled = cfg_mouse_enabled;
+        current_system_volume_following = cfg_system_volume_following;
       }
     }
   }
@@ -168,7 +173,7 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < 30; i++) {
       if (!process_is_running(running_pid)) {
         unlink(pidfile_path);
-        printf("VBX daemon stopped successfully.\n");
+        LOG_INFO("VBX daemon stopped successfully.");
         if (sound_name_owned) {
           free(sound_name);
         }
@@ -211,7 +216,8 @@ int main(int argc, char *argv[]) {
     config_updated = 1;
   }
   if (cli_opts.volume >= 0) {
-    volume = cli_opts.volume;
+    current_keyboard_volume = cli_opts.volume;
+    current_mouse_volume = cli_opts.volume;
     config_updated = 1;
   }
   if (cli_opts.keyboard_volume >= 0) {
@@ -264,17 +270,18 @@ int main(int argc, char *argv[]) {
   write_runtime_mouse_mute_file(current_mouse_mute);
   write_runtime_keyboard_enabled_file(current_keyboard_enabled);
   write_runtime_mouse_enabled_file(current_mouse_enabled);
+  write_runtime_system_volume_following_file(current_system_volume_following);
 
   if (config_updated &&
       get_user_config_path(user_cfg_path, sizeof(user_cfg_path))) {
     if (!write_user_config(user_cfg_path, sound_name, mouse_sound_name,
                            current_keyboard_volume, current_mouse_volume,
-                           current_keyboard_enabled, current_mouse_enabled)) {
-      safe_fprintf(stderr, "Warning: Failed to update config file %s\n",
-                   user_cfg_path);
-      safe_fprintf(stderr, "Your settings will not be saved for next time.\n");
+                           current_keyboard_enabled, current_mouse_enabled,
+                           current_system_volume_following)) {
+      LOG_WARN("Failed to update config file %s", user_cfg_path);
+      LOG_WARN("Your settings will not be saved for next time.");
     } else if (verbose) {
-      safe_fprintf(stderr, "Updated config file %s\n", user_cfg_path);
+      LOG_INFO("Updated config file %s", user_cfg_path);
     }
   }
 
@@ -293,10 +300,11 @@ int main(int argc, char *argv[]) {
     if (access(user_cfg_path, F_OK) != 0) {
       if (!write_user_config(user_cfg_path, sound_name, mouse_sound_name,
                              current_keyboard_volume, current_mouse_volume,
-                             current_keyboard_enabled, current_mouse_enabled)) {
-        safe_fprintf(stderr, "Warning: Failed to write %s\n", user_cfg_path);
+                             current_keyboard_enabled, current_mouse_enabled,
+                             current_system_volume_following)) {
+        LOG_WARN("Failed to write %s", user_cfg_path);
       } else if (verbose) {
-        printf("Created default configuration: %s\n", user_cfg_path);
+        LOG_INFO("Created default configuration: %s", user_cfg_path);
       }
     }
   }
@@ -346,10 +354,7 @@ int main(int argc, char *argv[]) {
       if (mouse_sound_name_owned) {
         free(mouse_sound_name);
       }
-      safe_fprintf(stderr,
-                   "VBX daemon is already running (PID: %ld). Use 'vbx --stop' "
-                   "to stop it.\n",
-                   (long)existing);
+      LOG_WARN("VBX daemon is already running (PID: %ld). Use 'vbx --stop' to stop it.", (long)existing);
       return 1;
     }
     daemonize_self();
@@ -382,8 +387,6 @@ int main(int argc, char *argv[]) {
     }
     return 1;
   }
-  current_keyboard_volume = volume;
-  current_mouse_volume = volume;
   current_verbose = verbose;
   safe_strncpy(current_sound_name, sound_name, sizeof(current_sound_name));
   safe_strncpy(current_mouse_sound_name, mouse_sound_name,
@@ -395,14 +398,14 @@ int main(int argc, char *argv[]) {
   safe_strncpy(current_mouse_sound_dir, mouse_sound_dir,
                sizeof(current_mouse_sound_dir));
   if (verbose && !is_daemon) {
-    printf("Starting VBX daemon...\n");
-    printf("Keyboard sound pack: %s\n", sound_name);
-    printf("Mouse sound pack: %s\n", mouse_sound_name);
-    printf("Keyboard config file: %s\n", config_path);
-    printf("Mouse config file: %s\n", mouse_config_path);
-    printf("Keyboard working directory: %s\n", sound_dir);
-    printf("Mouse working directory: %s\n", mouse_sound_dir);
-    printf("Press Ctrl+C to exit.\n\n");
+    LOG_INFO("Starting VBX daemon...");
+    LOG_INFO("Keyboard sound pack: %s", sound_name);
+    LOG_INFO("Mouse sound pack: %s", mouse_sound_name);
+    LOG_INFO("Keyboard config file: %s", config_path);
+    LOG_INFO("Mouse config file: %s", mouse_config_path);
+    LOG_INFO("Keyboard working directory: %s", sound_dir);
+    LOG_INFO("Mouse working directory: %s", mouse_sound_dir);
+    LOG_INFO("Press Ctrl+C to exit.");
   } else {
     if (!is_daemon) {
       printf("VBX daemon started successfully!\n");
@@ -415,10 +418,11 @@ int main(int argc, char *argv[]) {
       printf("Press Ctrl+C to exit.\n");
     }
   }
-  if (!start_children(sound_dir, config_path, volume, verbose, current_mute,
+  if (!start_children(sound_dir, config_path, current_keyboard_volume, verbose, current_mute,
                       mouse_sound_dir, mouse_config_path, current_mouse_volume,
                       current_keyboard_mute, current_mouse_mute,
-                      current_keyboard_enabled, current_mouse_enabled)) {
+                      current_keyboard_enabled, current_mouse_enabled,
+                      current_system_volume_following)) {
     if (sound_name_owned) {
       free(sound_name);
     }
@@ -433,14 +437,14 @@ int main(int argc, char *argv[]) {
 
   char user_cfg_path2[MAX_PATH_LENGTH];
   if (get_user_config_path(user_cfg_path2, sizeof(user_cfg_path2))) {
-    printf("Setting up file watcher for: %s\n", user_cfg_path2);
+    LOG_INFO("Setting up file watcher for: %s", user_cfg_path2);
     start_config_watcher(user_cfg_path2);
   } else {
-    printf("Warning: Could not get user config path for file watching\n");
+    LOG_WARN("Could not get user config path for file watching");
   }
   while (1) {
     if (reload_requested) {
-      printf("Reload requested, processing config changes...\n");
+      LOG_INFO("Reload requested, processing config changes...");
       reload_requested = 0;
       char user_cfg_path3[MAX_PATH_LENGTH];
       if (get_user_config_path(user_cfg_path3, sizeof(user_cfg_path3))) {
@@ -449,10 +453,11 @@ int main(int argc, char *argv[]) {
             &current_keyboard_volume, &current_mouse_volume,
             current_config_path, current_sound_dir, current_mouse_config_path,
             current_mouse_sound_dir, current_mute, current_verbose,
-            current_mouse_volume, current_keyboard_mute, current_mouse_mute,
-            &current_keyboard_enabled, &current_mouse_enabled);
+            current_keyboard_mute, current_mouse_mute,
+            &current_keyboard_enabled, &current_mouse_enabled,
+            &current_system_volume_following);
       } else {
-        printf("Failed to get user config path\n");
+        LOG_ERROR("Failed to get user config path");
       }
     }
     finished_pid = waitpid(-1, &status, WNOHANG);
@@ -465,14 +470,13 @@ int main(int argc, char *argv[]) {
     } else if (finished_pid > 0) {
       if (finished_pid == keyboard_pid) {
         if (!is_daemon)
-          printf("Keyboard listener exited with status %d\n",
-                 WEXITSTATUS(status));
+          LOG_WARN("Keyboard listener exited with status %d", WEXITSTATUS(status));
         keyboard_pid = 0;
         if (sound_pid > 0)
           kill(sound_pid, SIGTERM);
       } else if (finished_pid == sound_pid) {
         if (!is_daemon)
-          printf("Sound player exited with status %d\n", WEXITSTATUS(status));
+          LOG_WARN("Sound player exited with status %d", WEXITSTATUS(status));
         sound_pid = 0;
         if (keyboard_pid > 0)
           kill(keyboard_pid, SIGTERM);
@@ -484,7 +488,7 @@ int main(int argc, char *argv[]) {
     }
   }
   if (!is_daemon) {
-    printf("VBX daemon exited.\n");
+    LOG_INFO("VBX daemon exited.");
   }
   if (sound_name_owned) {
     free(sound_name);

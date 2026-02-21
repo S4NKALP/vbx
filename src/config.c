@@ -21,8 +21,31 @@ char *get_user_config_path(char *buffer, size_t buflen) {
 int write_user_config(const char *path, const char *keyboard_sound,
                       const char *mouse_sound, int keyboard_volume,
                       int mouse_volume, int keyboard_enabled,
-                      int mouse_enabled) {
-  json_object *root = json_object_new_object();
+                      int mouse_enabled, int system_volume_following) {
+  json_object *root = NULL;
+
+  FILE *in_f = fopen(path, "r");
+  if (in_f) {
+    fseek(in_f, 0, SEEK_END);
+    long sz = ftell(in_f);
+    if (sz > 0) {
+      rewind(in_f);
+      char *buf = malloc((size_t)sz + 1);
+      if (buf) {
+        if (fread(buf, 1, sz, in_f) == (size_t)sz) {
+          buf[sz] = '\0';
+          root = json_tokener_parse(buf);
+        }
+        free(buf);
+      }
+    }
+    fclose(in_f);
+  }
+
+  if (!root || !json_object_is_type(root, json_type_object)) {
+    if (root) json_object_put(root);
+    root = json_object_new_object();
+  }
   if (!root)
     return 0;
 
@@ -43,6 +66,9 @@ int write_user_config(const char *path, const char *keyboard_sound,
   json_object_object_add(mouse, "volume", json_object_new_int(mouse_volume));
   json_object_object_add(root, "mouse", mouse);
 
+  json_object_object_add(root, "system_volume_following",
+                         json_object_new_boolean(system_volume_following));
+
   const char *json_str =
       json_object_to_json_string_ext(root, JSON_C_TO_STRING_PRETTY);
   FILE *f = fopen(path, "w");
@@ -59,7 +85,7 @@ int write_user_config(const char *path, const char *keyboard_sound,
 int read_user_config(const char *path, char **out_keyboard_sound,
                      char **out_mouse_sound, int *out_keyboard_volume,
                      int *out_mouse_volume, int *out_keyboard_enabled,
-                     int *out_mouse_enabled) {
+                     int *out_mouse_enabled, int *out_system_volume_following) {
   FILE *f = fopen(path, "r");
   if (!f)
     return 0;
@@ -135,6 +161,7 @@ int read_user_config(const char *path, char **out_keyboard_sound,
       *out_keyboard_volume = legacy_volume;
       *out_mouse_volume = legacy_volume;
     }
+    *out_system_volume_following = 0;
   }
   json_object_put(root);
   return 1;

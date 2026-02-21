@@ -1,5 +1,6 @@
 #include "app/reload.h"
 #include "app/process.h"
+#include "common/log.h"
 #include "common/utils.h"
 #include "soundpacks.h"
 #include "user_config.h"
@@ -12,26 +13,28 @@ int handle_reload(const char *user_cfg_path, char *current_sound_name,
                   int *current_mouse_volume, char *current_config_path,
                   char *current_sound_dir, char *current_mouse_config_path,
                   char *current_mouse_sound_dir, int current_mute,
-                  int current_verbose, int current_mouse_volume_arg,
-                  int current_keyboard_mute, int current_mouse_mute,
-                  int *current_keyboard_enabled, int *current_mouse_enabled) {
+                  int current_verbose, int current_keyboard_mute,
+                  int current_mouse_mute, int *current_keyboard_enabled,
+                  int *current_mouse_enabled, int *current_system_volume_following) {
+  int g_verbose = current_verbose;
   char *cfg_keyboard_sound = NULL;
   char *cfg_mouse_sound = NULL;
   int cfg_keyboard_volume = *current_keyboard_volume;
   int cfg_mouse_volume = *current_mouse_volume;
   int cfg_keyboard_enabled = *current_keyboard_enabled;
   int cfg_mouse_enabled = *current_mouse_enabled;
+  int cfg_system_volume_following = *current_system_volume_following;
   if (read_user_config(user_cfg_path, &cfg_keyboard_sound, &cfg_mouse_sound,
                        &cfg_keyboard_volume, &cfg_mouse_volume,
-                       &cfg_keyboard_enabled, &cfg_mouse_enabled)) {
-    printf("Read config - keyboard:%s mouse:%s kvol:%d mvol:%d kenabled:%d "
-           "menabled:%d\n",
+                       &cfg_keyboard_enabled, &cfg_mouse_enabled, &cfg_system_volume_following)) {
+    LOG_DEBUG("Read config - keyboard:%s mouse:%s kvol:%d mvol:%d kenabled:%d "
+           "menabled:%d",
            cfg_keyboard_sound ? cfg_keyboard_sound : "NULL",
            cfg_mouse_sound ? cfg_mouse_sound : "NULL", cfg_keyboard_volume,
            cfg_mouse_volume, cfg_keyboard_enabled, cfg_mouse_enabled);
     int keyboard_changed = 0, mouse_changed = 0, keyboard_volume_changed = 0,
         mouse_volume_changed = 0, keyboard_enabled_changed = 0,
-        mouse_enabled_changed = 0;
+        mouse_enabled_changed = 0, sysvol_following_changed = 0;
     if (cfg_keyboard_sound &&
         strcmp(current_sound_name, cfg_keyboard_sound) != 0) {
       keyboard_changed = 1;
@@ -62,18 +65,23 @@ int handle_reload(const char *user_cfg_path, char *current_sound_name,
       mouse_enabled_changed = 1;
       *current_mouse_enabled = cfg_mouse_enabled;
     }
-    printf("Config changed - keyboard:%d mouse:%d kvol:%d mvol:%d kenabled:%d "
-           "menabled:%d\n",
+    if (cfg_system_volume_following != *current_system_volume_following) {
+      sysvol_following_changed = 1;
+      *current_system_volume_following = cfg_system_volume_following;
+    }
+    LOG_DEBUG("Config changed - keyboard:%d mouse:%d kvol:%d mvol:%d kenabled:%d "
+           "menabled:%d",
            keyboard_changed, mouse_changed, keyboard_volume_changed,
            mouse_volume_changed, keyboard_enabled_changed,
            mouse_enabled_changed);
     if (keyboard_changed || mouse_changed || keyboard_volume_changed ||
         mouse_volume_changed || keyboard_enabled_changed ||
-        mouse_enabled_changed) {
+        mouse_enabled_changed || sysvol_following_changed) {
       // Persist enabled state to runtime files so the audio process picks it up
       // immediately
       write_runtime_keyboard_enabled_file(*current_keyboard_enabled);
       write_runtime_mouse_enabled_file(*current_mouse_enabled);
+      write_runtime_system_volume_following_file(*current_system_volume_following);
       int keyboard_valid = validate_keyboard_sound_pack(current_sound_name);
       int mouse_valid = validate_mouse_sound_pack(current_mouse_sound_name);
       if (keyboard_valid && mouse_valid) {
@@ -87,31 +95,32 @@ int handle_reload(const char *user_cfg_path, char *current_sound_name,
             start_children(current_sound_dir, current_config_path,
                            *current_keyboard_volume, current_verbose,
                            current_mute, current_mouse_sound_dir,
-                           current_mouse_config_path, current_mouse_volume_arg,
+                           current_mouse_config_path, *current_mouse_volume,
                            current_keyboard_mute, current_mouse_mute,
-                           *current_keyboard_enabled, *current_mouse_enabled);
-            printf("Reloaded successfully: keyboard=%s, mouse=%s, kvol=%d, "
-                   "mvol=%d\n",
+                           *current_keyboard_enabled, *current_mouse_enabled,
+                           *current_system_volume_following);
+            LOG_INFO("Reloaded successfully: keyboard=%s, mouse=%s, kvol=%d, "
+                   "mvol=%d",
                    current_sound_name, current_mouse_sound_name,
                    *current_keyboard_volume, *current_mouse_volume);
             return 1;
           } else {
-            printf("Failed to build mouse sound paths\n");
+            LOG_ERROR("Failed to build mouse sound paths");
           }
         } else {
-          printf("Failed to build keyboard sound paths\n");
+          LOG_ERROR("Failed to build keyboard sound paths");
         }
       } else {
         if (!keyboard_valid)
-          printf("Reload failed: invalid keyboard sound pack '%s'\n",
+          LOG_ERROR("Reload failed: invalid keyboard sound pack '%s'",
                  current_sound_name);
         if (!mouse_valid)
-          printf("Reload failed: invalid mouse sound pack '%s'\n",
+          LOG_ERROR("Reload failed: invalid mouse sound pack '%s'",
                  current_mouse_sound_name);
       }
     }
   } else {
-    printf("Failed to read user config\n");
+    LOG_ERROR("Failed to read user config");
   }
   return 0;
 }

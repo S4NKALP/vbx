@@ -1,4 +1,6 @@
 #include "common/utils.h"
+#include "common/ipc.h"
+#include "common/log.h"
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -61,41 +63,27 @@ static void close_restricted(int fd, void *user_data) {
 static const struct libinput_interface interface = {
     .open_restricted = open_restricted, .close_restricted = close_restricted};
 
-static int print_key_event(struct libinput_event *event) {
-  struct libinput_event_keyboard *keyboard =
-      libinput_event_get_keyboard_event(event);
-  enum libinput_event_type event_type = libinput_event_get_type(event);
-  uint32_t time_stamp = libinput_event_keyboard_get_time(keyboard);
-  uint32_t key_code = libinput_event_keyboard_get_key(keyboard);
-  const char *key_name = libevdev_event_code_get_name(EV_KEY, key_code);
-  key_name = key_name ? key_name : "null";
-  enum libinput_key_state state_code =
-      libinput_event_keyboard_get_key_state(keyboard);
-  const char *state_name =
-      state_code == LIBINPUT_KEY_STATE_PRESSED ? "PRESSED" : "RELEASED";
-  return printf("{\"event_name\": \"KEYBOARD_KEY\", \"event_type\": %d, "
-                "\"time_stamp\": %d, \"key_name\": \"%s\", \"key_code\": %d, "
-                "\"state_name\": \"%s\", \"state_code\": %d}\n",
-                event_type, time_stamp, key_name, key_code, state_name,
-                state_code);
+static void send_event(uint32_t key_code, uint8_t is_pressed) {
+  VbxEvent ev = { .key_code = key_code, .is_pressed = is_pressed };
+  fwrite(&ev, sizeof(VbxEvent), 1, stdout);
 }
 
-static int print_button_event(struct libinput_event *event) {
+static void send_key_event(struct libinput_event *event) {
+  struct libinput_event_keyboard *keyboard =
+      libinput_event_get_keyboard_event(event);
+  uint32_t key_code = libinput_event_keyboard_get_key(keyboard);
+  enum libinput_key_state state_code =
+      libinput_event_keyboard_get_key_state(keyboard);
+  send_event(key_code, state_code == LIBINPUT_KEY_STATE_PRESSED ? 1 : 0);
+}
+
+static void send_button_event(struct libinput_event *event) {
   struct libinput_event_pointer *pointer =
       libinput_event_get_pointer_event(event);
-  enum libinput_event_type event_type = libinput_event_get_type(event);
-  uint32_t time_stamp = libinput_event_pointer_get_time(pointer);
   uint32_t button_code = libinput_event_pointer_get_button(pointer);
-  const char *button_name = libevdev_event_code_get_name(EV_KEY, button_code);
   enum libinput_button_state state_code =
       libinput_event_pointer_get_button_state(pointer);
-  const char *state_name =
-      state_code == LIBINPUT_BUTTON_STATE_PRESSED ? "PRESSED" : "RELEASED";
-  return printf("{\"event_name\": \"POINTER_BUTTON\", \"event_type\": %d, "
-                "\"time_stamp\": %d, \"key_name\": \"%s\", \"key_code\": %d, "
-                "\"state_name\": \"%s\", \"state_code\": %d}\n",
-                event_type, time_stamp, button_name, button_code, state_name,
-                state_code);
+  send_event(button_code, state_code == LIBINPUT_BUTTON_STATE_PRESSED ? 1 : 0);
 }
 
 static int handle_events(struct libinput *libinput) {
@@ -103,20 +91,27 @@ static int handle_events(struct libinput *libinput) {
   struct libinput_event *event;
   if (libinput_dispatch(libinput) < 0)
     return result;
+    
+  bool flushed = false;
   while ((event = libinput_get_event(libinput)) != NULL) {
     switch (libinput_event_get_type(event)) {
     case LIBINPUT_EVENT_KEYBOARD_KEY:
-      print_key_event(event);
+      send_key_event(event);
+      flushed = true;
       break;
     case LIBINPUT_EVENT_POINTER_BUTTON:
-      print_button_event(event);
+      send_button_event(event);
+      flushed = true;
       break;
     default:
       break;
     }
-    fflush(stdout);
     libinput_event_destroy(event);
     result = 0;
+  }
+  
+  if (flushed) {
+    fflush(stdout);
   }
   return result;
 }
@@ -152,6 +147,9 @@ void print_help(char *program_name) {
          "You should run the frontend of Show Me The Key, and the frontend "
          "will run this.\n");
 }
+
+int g_verbose = 0;
+int is_daemon = 0;
 
 int main(int argc, char *argv[]) {
   setvbuf(stdout, NULL, _IOLBF, 0);

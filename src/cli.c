@@ -59,7 +59,8 @@ void print_usage(const char *program_name) {
   printf("  --enable[=DEVICE]        Enable device sounds "
          "(keyboard|mouse|both)\n");
   printf("  --disable[=DEVICE]       Disable device sounds "
-         "(keyboard|mouse|both)\n\n");
+         "(keyboard|mouse|both)\n");
+  printf("  --system-volume-following=0/1 Enable or disable tracking Linux system volume dynamically\n\n");
 
   printf("DAEMON MODE:\n");
   printf("  -d, --daemon             Run in background with auto-reload\n");
@@ -102,6 +103,7 @@ int parse_cli(int argc, char **argv, CliOptions *out) {
   out->mouse_mute = -1;
   out->keyboard_enabled = -1;
   out->mouse_enabled = -1;
+  out->system_volume_following = -1;
   static struct option long_options[] = {
       {"sound", required_argument, 0, 'S'},
       {"mouse", required_argument, 0, 'M'},
@@ -117,6 +119,7 @@ int parse_cli(int argc, char **argv, CliOptions *out) {
       {"stop", no_argument, 0, 's'},
       {"help", no_argument, 0, 'h'},
       {"verbose", no_argument, 0, 'v'},
+      {"system-volume-following", required_argument, 0, 'f'},
       {0, 0, 0, 0}};
   for (int i = 1; i < argc; i++) {
     if (argv[i][0] == '-' && argv[i][1] == '-') {
@@ -133,8 +136,8 @@ int parse_cli(int argc, char **argv, CliOptions *out) {
             (n == 6 && strncmp(a, "unmute", 6) == 0) ||
             (n == 6 && strncmp(a, "enable", 6) == 0) ||
             (n == 7 && strncmp(a, "disable", 7) == 0) ||
-            (n == 4 && strncmp(a, "help", 4) == 0) ||
-            (n == 7 && strncmp(a, "verbose", 7) == 0))) {
+            (n == 7 && strncmp(a, "verbose", 7) == 0) ||
+            (n == 23 && strncmp(a, "system-volume-following", 23) == 0))) {
         safe_fprintf(stderr, "Error: Unknown option '%s'\n", argv[i]);
         safe_fprintf(stderr, "Run '%s --help' to see available options.\n",
                      argv[0]);
@@ -144,7 +147,7 @@ int parse_cli(int argc, char **argv, CliOptions *out) {
   }
   optind = 1;
   int opt;
-  while ((opt = getopt_long(argc, argv, "S:M:V:K:O:lhdsm::u::v", long_options,
+  while ((opt = getopt_long(argc, argv, "S:M:V:K:O:f:lhdsm::u::v", long_options,
                             NULL)) != -1) {
     switch (opt) {
     case 'd':
@@ -179,6 +182,9 @@ int parse_cli(int argc, char **argv, CliOptions *out) {
                                 &out->mouse_mute, 0) != 0) {
         return 1;
       }
+      break;
+    case 'f':
+      out->system_volume_following = atoi(optarg);
       break;
     case 1000: // --enable
     case 1001: // --disable

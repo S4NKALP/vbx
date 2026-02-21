@@ -1,11 +1,14 @@
 #define _POSIX_C_SOURCE 200809L
 #include "app/process.h"
+#include "common/log.h"
 #include "common/utils.h"
 #include "config.h"
+#include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -21,7 +24,7 @@ volatile sig_atomic_t reload_requested = 0;
 void cleanup_processes(int sig) {
   (void)sig;
   if (!is_daemon) {
-    printf("\nShutting down VBX daemon...\n");
+    LOG_INFO("Shutting down VBX daemon...");
   }
   if (sound_pid > 0) {
     kill(sound_pid, SIGTERM);
@@ -42,7 +45,7 @@ int require_running_pid(pid_t *out_pid) {
   pid_t running_pid = 0;
   if (!read_pidfile(pidfile_path, &running_pid) ||
       !process_is_running(running_pid)) {
-    fprintf(stderr, "VBX daemon is not running.\n");
+    LOG_ERROR("VBX daemon is not running.");
     return 0;
   }
   *out_pid = running_pid;
@@ -92,17 +95,17 @@ int start_children(const char *sound_dir, const char *config_path, int volume,
                    int verbose, int mute, const char *mouse_sound_dir,
                    const char *mouse_config_path, int mouse_volume,
                    int keyboard_mute, int mouse_mute, int keyboard_enabled,
-                   int mouse_enabled) {
+                   int mouse_enabled, int system_volume_following) {
   (void)config_path;
   (void)mouse_sound_dir;
   int pipefd[2];
   if (pipe(pipefd) == -1) {
-    perror("pipe");
+    LOG_ERROR("pipe: %s", strerror(errno));
     return 0;
   }
   sound_pid = fork();
   if (sound_pid == -1) {
-    perror("fork");
+    LOG_ERROR("fork: %s", strerror(errno));
     close(pipefd[0]);
     close(pipefd[1]);
     return 0;
@@ -115,12 +118,13 @@ int start_children(const char *sound_dir, const char *config_path, int volume,
     dup2(pipefd[0], STDIN_FILENO);
     close(pipefd[0]);
     if (chdir(sound_dir) != 0) {
-      perror("chdir");
+      LOG_ERROR("chdir: %s", strerror(errno));
       exit(1);
     }
     char volume_str[32], mouse_volume_str[32], verbose_str[8], mute_str[8];
     char keyboard_mute_str[8], mouse_mute_str[8];
     char keyboard_enabled_str[8], mouse_enabled_str[8];
+    char system_volume_following_str[8];
     
     int_to_str(volume_str, sizeof(volume_str), volume);
     int_to_str(mouse_volume_str, sizeof(mouse_volume_str), mouse_volume);
@@ -130,17 +134,19 @@ int start_children(const char *sound_dir, const char *config_path, int volume,
     int_to_str(mouse_mute_str, sizeof(mouse_mute_str), mouse_mute);
     int_to_str(keyboard_enabled_str, sizeof(keyboard_enabled_str), keyboard_enabled);
     int_to_str(mouse_enabled_str, sizeof(mouse_enabled_str), mouse_enabled);
+    int_to_str(system_volume_following_str, sizeof(system_volume_following_str),
+               system_volume_following);
     
     execl(sound_player_path, "vbx-audio", "config.json", volume_str,
           verbose_str, mute_str, mouse_config_path, mouse_volume_str,
           keyboard_mute_str, mouse_mute_str, keyboard_enabled_str,
-          mouse_enabled_str, (char *)NULL);
-    perror("execl vbx-audio");
+          mouse_enabled_str, system_volume_following_str, (char *)NULL);
+    LOG_ERROR("execl vbx-audio: %s", strerror(errno));
     exit(1);
   }
   keyboard_pid = fork();
   if (keyboard_pid == -1) {
-    perror("fork");
+    LOG_ERROR("fork: %s", strerror(errno));
     kill(sound_pid, SIGTERM);
     close(pipefd[0]);
     close(pipefd[1]);
@@ -154,7 +160,7 @@ int start_children(const char *sound_dir, const char *config_path, int volume,
     dup2(pipefd[1], STDOUT_FILENO);
     close(pipefd[1]);
     execl(get_key_presses_path, "vbx-input", (char *)NULL);
-    perror("execl vbx-input");
+    LOG_ERROR("execl vbx-input: %s", strerror(errno));
     exit(1);
   }
   close(pipefd[0]);
