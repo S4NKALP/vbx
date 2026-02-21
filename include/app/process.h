@@ -17,7 +17,8 @@ void stop_children(void);
 int start_children(const char *sound_dir, const char *config_path, int volume,
                    int verbose, int mute, const char *mouse_sound_dir,
                    const char *mouse_config_path, int mouse_volume,
-                   int keyboard_mute, int mouse_mute, int keyboard_enabled, int mouse_enabled);
+                   int keyboard_mute, int mouse_mute, int keyboard_enabled,
+                   int mouse_enabled, int system_volume_following);
 void handle_sighup(int sig);
 
 #endif // VBX_PROCESS_H

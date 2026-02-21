@@ -41,5 +41,7 @@ extern int g_keyboard_mute;
 extern int g_mouse_mute;
 extern int g_keyboard_enabled;
 extern int g_mouse_enabled;
+extern int g_system_volume_following;
+extern float g_system_volume_multiplier;
 
 #endif // VBX_AUDIO_TYPES_H

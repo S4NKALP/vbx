@@ -29,6 +29,9 @@ void write_runtime_mouse_mute_file(int mute);
 int write_runtime_keyboard_enabled_file(int enabled);
 int write_runtime_mouse_enabled_file(int enabled);
 
+// System volume following helper
+int write_runtime_system_volume_following_file(int enabled);
+
 // Helper functions
 void int_to_str(char *buffer, size_t size, int value);
 char *xstrdup(const char *s);
