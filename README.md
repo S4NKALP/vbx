@@ -72,13 +72,27 @@ sudo make install
       -u --unmute                   Unmute sound
       -- enbale/disable DEVICE_NAME Enable/disable a device
       -l, --list                    List available sound packs
+      -f, --system-volume-following=0/1 Enable/disable dynamic tracking of system volume (default: 0)
       -h, --help                    Show this help message
       -v, --verbose                 Enable verbose output
 
 Notes:
 
-- First run creates `~/.vbx.json`. Subsequent runs use it unless `-c` is supplied.
+- First run creates `~/.vbx.json`. Subsequent runs use it unless `--config` is supplied.
 - In daemon mode, editing `~/.vbx.json` will automatically reload.
+
+## 🔊 Volume Mechanics
+
+vbx lets you control your volume in three ways:
+1. **Keyboard Volume** (`--volume`): Sets the base volume for your keyboard sounds (from 0 to 100).
+2. **Mouse Volume** (`--mouse-volume`): Sets the base volume for your mouse clicks (from 0 to 100).
+3. **System Volume Multiplexer** (`--system-volume-following=1`): When turned on, `vbx` automatically scales the app's sound to match your computer's main volume slider.
+
+**How the multiplexer works:**
+Instead of just cutting the volume linearly (which makes sounds too quiet at 50% OS volume), the multiplexer uses a gentle boost curve. This means if you lower your computer's volume, your typing sounds will still be punchy and easy to hear without ever being too loud!
+
+**Example:**
+If you set your keyboard volume to `50%` (`vbx --volume 50 --system-volume-following 1`), and your computer's master volume is currently at `80%`, `vbx` will intelligently scale its own output down to securely match your OS levels, without you having to change your `vbx` settings every time you watch a quiet video!
 
 ## 🎵 Sound Packs
 
