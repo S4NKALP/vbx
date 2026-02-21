@@ -8,22 +8,42 @@
 typedef struct {
   int start_ms;
   int duration_ms;
+  short *pcm_data;
+  uint32_t num_samples;
 } SoundMapping;
 
 typedef struct {
   char press_file[256];
   char release_file[256];
   char generic_press_files[5][256];
+  short *generic_press_data[5];
+  uint32_t generic_press_samples[5];
   int num_generic_press_files;
   char sound_file[256];
+  short *release_data;
+  uint32_t release_samples;
   SoundMapping key_mappings[512];
   struct {
     char *press;
     char *release;
+    short *press_data;
+    uint32_t press_samples;
+    short *release_data;
+    uint32_t release_samples;
   } multi_key_mappings[512];
   int is_multi;
   SF_INFO sf_info;
 } SoundPack;
+
+typedef struct {
+  short *data;
+  uint32_t total_samples;
+  uint32_t current_pos;
+  float volume;
+  int active;
+} AudioVoice;
+
+#define MAX_MIXER_VOICES 32
 
 typedef struct {
   int key_code;
