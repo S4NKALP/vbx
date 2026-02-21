@@ -3,6 +3,9 @@
 /keyvibe
 /keyvibe-audio
 /keyvibe-input
+/audio
+/input
+/vbx
 
 # Object and static/shared library files
 *.o
