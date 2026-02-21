@@ -1,7 +1,7 @@
 #include "audio/playback.h"
 #include "audio/types.h"
 #include "common/utils.h"
-#include <json-c/json.h>
+#include "common/log.h"
 #include <pthread.h>
 #include <pulse/error.h>
 #include <pulse/simple.h>
@@ -15,32 +15,37 @@ pthread_t sound_threads[MAX_CONCURRENT_SOUNDS];
 volatile int thread_active[MAX_CONCURRENT_SOUNDS] = {0};
 pthread_mutex_t thread_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+static inline float get_boosted_system_volume(float vol_multiplier) {
+  if (vol_multiplier >= 1.0f) return vol_multiplier;
+  if (vol_multiplier <= 0.0f) return 0.0f;
+  float inv = 1.0f - vol_multiplier;
+  return 1.0f - (inv * inv * inv);
+}
+
 int init_audio() {
   if (g_sound_pack.is_multi)
     return 0;
   if (strlen(g_sound_pack.sound_file) == 0) {
-    fprintf(stderr, "Error: No sound file specified in sound pack config\n");
-    fprintf(stderr, "Check that your sound pack has a valid config.json file.\n");
+    LOG_ERROR("No sound file specified in sound pack config");
+    LOG_ERROR("Check that your sound pack has a valid config.json file.");
     return -1;
   }
   if (access(g_sound_pack.sound_file, R_OK) != 0) {
-    fprintf(stderr, "Sound file not accessible: %s\n", g_sound_pack.sound_file);
+    LOG_ERROR("Sound file not accessible: %s", g_sound_pack.sound_file);
     perror("access");
     return -1;
   }
   SNDFILE *test_sf =
       sf_open(g_sound_pack.sound_file, SFM_READ, &g_sound_pack.sf_info);
   if (!test_sf) {
-    fprintf(stderr, "Could not open sound file: %s\n", g_sound_pack.sound_file);
-    fprintf(stderr, "libsndfile error: %s\n", sf_strerror(NULL));
+    LOG_ERROR("Could not open sound file: %s", g_sound_pack.sound_file);
+    LOG_ERROR("libsndfile error: %s", sf_strerror(NULL));
     return -1;
   }
   sf_close(test_sf);
-  if (g_verbose) {
-    printf("Sound file info: %ld frames, %d channels, %d Hz\n",
-           g_sound_pack.sf_info.frames, g_sound_pack.sf_info.channels,
-           g_sound_pack.sf_info.samplerate);
-  }
+  LOG_DEBUG("Sound file info: %ld frames, %d channels, %d Hz",
+         (long)g_sound_pack.sf_info.frames, g_sound_pack.sf_info.channels,
+         g_sound_pack.sf_info.samplerate);
   return 0;
 }
 
@@ -56,17 +61,13 @@ void *play_sound_thread(void *arg) {
   float volume = is_mouse_event ? g_mouse_volume : g_volume;
   int mute_state = is_mouse_event ? g_mouse_mute : g_keyboard_mute;
 
-  if (g_verbose) {
-    printf("Thread %d: Playing %s sound for key %d (%s)\n", thread_id,
-           is_mouse_event ? "mouse" : "keyboard", key_code,
-           is_pressed ? "press" : "release");
-  }
+  LOG_DEBUG("Thread %d: Playing %s sound for key %d (%s)", thread_id,
+         is_mouse_event ? "mouse" : "keyboard", key_code,
+         is_pressed ? "press" : "release");
 
   if (g_mute || mute_state) {
-    if (g_verbose) {
-      printf("Thread %d: %s sound is muted\n", thread_id,
-             is_mouse_event ? "Mouse" : "Keyboard");
-    }
+    LOG_DEBUG("Thread %d: %s sound is muted", thread_id,
+           is_mouse_event ? "Mouse" : "Keyboard");
     goto exit_cleanup;
   }
   if (sound_pack->is_multi) {
@@ -80,21 +81,17 @@ void *play_sound_thread(void *arg) {
     } else if (!is_pressed && strlen(sound_pack->release_file) > 0)
       file_to_play = sound_pack->release_file;
     if (!file_to_play) {
-      if (g_verbose) {
-        printf("Thread %d: No sound file found for key %d (%s)\n", thread_id,
-               key_code, is_pressed ? "press" : "release");
-      }
+      LOG_DEBUG("Thread %d: No sound file found for key %d (%s)", thread_id,
+             key_code, is_pressed ? "press" : "release");
       goto exit_cleanup;
     }
-    if (g_verbose) {
-      printf("Thread %d: Using sound file: %s\n", thread_id, file_to_play);
-    }
+    LOG_DEBUG("Thread %d: Using sound file: %s", thread_id, file_to_play);
     SF_INFO sf_info = {0};
     SNDFILE *sf = sf_open(file_to_play, SFM_READ, &sf_info);
     if (!sf) {
-      fprintf(stderr, "Error: Could not open sound file: %s\n", file_to_play);
-      fprintf(stderr, "Details: %s\n", sf_strerror(NULL));
-      fprintf(stderr, "Check that the audio file exists and is readable.\n");
+      LOG_ERROR("Could not open sound file: %s", file_to_play);
+      LOG_ERROR("Details: %s", sf_strerror(NULL));
+      LOG_ERROR("Check that the audio file exists and is readable.");
       goto exit_cleanup;
     }
     pa_sample_spec ss = {.format = PA_SAMPLE_S16LE,
@@ -105,8 +102,7 @@ void *play_sound_thread(void *arg) {
         pa_simple_new(NULL, "KeyboardSounds", PA_STREAM_PLAYBACK, NULL,
                       "playback", &ss, NULL, NULL, &pa_error);
     if (!pa_handle) {
-      fprintf(stderr, "Could not initialize PulseAudio: %s\n",
-              pa_strerror(pa_error));
+      LOG_ERROR("Could not initialize PulseAudio: %s", pa_strerror(pa_error));
       sf_close(sf);
       goto exit_cleanup;
     }
@@ -119,15 +115,15 @@ void *play_sound_thread(void *arg) {
     }
     sf_count_t read;
     while ((read = sf_readf_short(sf, buffer, frames)) > 0) {
+      float vol_mult = volume * get_boosted_system_volume(g_system_volume_multiplier);
       for (sf_count_t i = 0; i < read * sf_info.channels; i++) {
-        buffer[i] = (short)(buffer[i] * volume);
+        buffer[i] = (short)(buffer[i] * vol_mult);
       }
       int pa_write_error;
       if (pa_simple_write(pa_handle, buffer,
                           read * sf_info.channels * sizeof(short),
                           &pa_write_error) < 0) {
-        fprintf(stderr, "PulseAudio write error: %s\n",
-                pa_strerror(pa_write_error));
+        LOG_ERROR("PulseAudio write error: %s", pa_strerror(pa_write_error));
         break;
       }
     }
@@ -139,16 +135,14 @@ void *play_sound_thread(void *arg) {
   } else {
     if (key_code >= 512 ||
         sound_pack->key_mappings[key_code].duration_ms == 0) {
-      if (g_verbose) {
-        printf("Thread %d: No mapping for key %d\n", thread_id, key_code);
-      }
+      LOG_DEBUG("Thread %d: No mapping for key %d", thread_id, key_code);
       goto exit_cleanup;
     }
     SoundMapping *mapping = &sound_pack->key_mappings[key_code];
     SF_INFO sf_info = sound_pack->sf_info;
     SNDFILE *sf = sf_open(sound_pack->sound_file, SFM_READ, &sf_info);
     if (!sf) {
-      fprintf(stderr, "Thread: Could not open sound file\n");
+      LOG_ERROR("Thread: Could not open sound file");
       goto exit_cleanup;
     }
     pa_sample_spec ss = {.format = PA_SAMPLE_S16LE,
@@ -160,8 +154,7 @@ void *play_sound_thread(void *arg) {
                       "playback", &ss, NULL, NULL, &pa_error);
     if (!pa_handle) {
       sf_close(sf);
-      fprintf(stderr, "Thread: Could not initialize PulseAudio: %s\n",
-              pa_strerror(pa_error));
+      LOG_ERROR("Thread: Could not initialize PulseAudio: %s", pa_strerror(pa_error));
       goto exit_cleanup;
     }
     sf_count_t start_frame = (mapping->start_ms * sf_info.samplerate) / 1000;
@@ -175,8 +168,9 @@ void *play_sound_thread(void *arg) {
       goto exit_cleanup;
     }
     sf_count_t frames_read = sf_readf_short(sf, buffer, duration_frames);
+    float vol_mult = volume * get_boosted_system_volume(g_system_volume_multiplier);
     for (sf_count_t i = 0; i < frames_read * sf_info.channels; i++) {
-      buffer[i] = (short)(buffer[i] * volume);
+      buffer[i] = (short)(buffer[i] * vol_mult);
     }
     int pa_write_error, pa_drain_error;
     pa_simple_write(pa_handle, buffer,
@@ -209,10 +203,8 @@ int find_available_thread_slot() {
 
 void play_sound_segment(int key_code, int is_pressed) {
   if (g_mute) {
-    if (g_verbose) {
-      printf("Sound muted - ignoring key %d (%s)\n", key_code,
-             is_pressed ? "press" : "release");
-    }
+    LOG_DEBUG("Sound muted - ignoring key %d (%s)", key_code,
+           is_pressed ? "press" : "release");
     return;
   }
 
@@ -224,32 +216,24 @@ void play_sound_segment(int key_code, int is_pressed) {
     // For now, we'll add a simple check here
     extern int g_mouse_enabled;
     if (!g_mouse_enabled) {
-      if (g_verbose) {
-        printf("Mouse sounds disabled - ignoring mouse event %d\n", key_code);
-      }
+      LOG_DEBUG("Mouse sounds disabled - ignoring mouse event %d", key_code);
       return;
     }
   } else {
     // For keyboard events, check if keyboard is enabled
     extern int g_keyboard_enabled;
     if (!g_keyboard_enabled) {
-      if (g_verbose) {
-        printf("Keyboard sounds disabled - ignoring key %d\n", key_code);
-      }
+      LOG_DEBUG("Keyboard sounds disabled - ignoring key %d", key_code);
       return;
     }
   }
   if (!g_sound_pack.is_multi && !is_pressed) {
-    if (g_verbose) {
-      printf("Single mode: Ignoring key release for key %d\n", key_code);
-    }
+    LOG_DEBUG("Single mode: Ignoring key release for key %d", key_code);
     return;
   }
   int slot = find_available_thread_slot();
   if (slot == -1) {
-    if (g_verbose) {
-      printf("Warning: No available thread slots\n");
-    }
+    LOG_WARN("No available thread slots");
     return;
   }
   PlaybackData *data = malloc(sizeof(PlaybackData));
@@ -264,43 +248,10 @@ void play_sound_segment(int key_code, int is_pressed) {
       0) {
     thread_active[slot] = 0;
     free(data);
-    fprintf(stderr, "Failed to create sound thread\n");
+    LOG_ERROR("Failed to create sound thread");
   } else {
     pthread_detach(sound_threads[slot]);
   }
   pthread_mutex_unlock(&thread_mutex);
 }
 
-
-int parse_keyboard_event(const char *json_line, int *key_code,
-                         int *is_pressed) {
-  char *line_copy = xstrdup(json_line);
-  if (!line_copy)
-    return -1;
-  char *newline = strchr(line_copy, '\n');
-  if (newline)
-    *newline = '\0';
-  if (g_verbose) {
-    printf("Parsing JSON: %s\n", line_copy);
-  }
-  json_object *root = json_tokener_parse(line_copy);
-  free(line_copy);
-  if (!root) {
-    fprintf(stderr, "Failed to parse JSON: %s\n", json_line);
-    return -1;
-  }
-  json_object *key_code_obj, *state_code_obj;
-  if (json_object_object_get_ex(root, "key_code", &key_code_obj) &&
-      json_object_object_get_ex(root, "state_code", &state_code_obj)) {
-    *key_code = json_object_get_int(key_code_obj);
-    *is_pressed = json_object_get_int(state_code_obj);
-    if (g_verbose) {
-      printf("Parsed key event: key_code=%d, is_pressed=%d\n", *key_code,
-             *is_pressed);
-    }
-    json_object_put(root);
-    return 0;
-  }
-  json_object_put(root);
-  return -1;
-}

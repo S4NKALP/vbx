@@ -1,17 +1,22 @@
+#define _XOPEN_SOURCE 500
 #include "audio/playback.h"
 #include "audio/types.h"
 #include "common/utils.h"
+#include "common/ipc.h"
+#include "common/log.h"
 #include <errno.h>
-#include <json-c/json.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/select.h>
 #include <sys/time.h>
 #include <unistd.h>
+#include <pthread.h>
 
 int g_keyboard_enabled = 1;
 int g_mouse_enabled = 1;
+int g_system_volume_following = 0;
+float g_system_volume_multiplier = 1.0f;
 
 int load_sound_config(const char *config_path);
 
@@ -59,12 +64,46 @@ static int read_mouse_enabled_state() {
   return read_runtime_state("mouse-enabled", 1);
 }
 
+static int read_system_volume_following_state() {
+  return read_runtime_state("sysvol-following", 0);
+}
+
+void *system_volume_poller_thread(void *arg) {
+  (void)arg;
+  while (1) {
+    g_mute = read_mute_state();
+    g_keyboard_mute = read_keyboard_mute_state();
+    g_mouse_mute = read_mouse_mute_state();
+    g_keyboard_enabled = read_keyboard_enabled_state();
+    g_mouse_enabled = read_mouse_enabled_state();
+    g_system_volume_following = read_system_volume_following_state();
+
+    if (g_system_volume_following) {
+      char buffer[128];
+      FILE *fp = popen("wpctl get-volume @DEFAULT_AUDIO_SINK@", "r");
+      if (fp != NULL) {
+        if (fgets(buffer, sizeof(buffer), fp) != NULL) {
+          float vol = 1.0f;
+          if (sscanf(buffer, "Volume: %f", &vol) == 1) {
+            g_system_volume_multiplier = vol;
+          }
+        }
+        pclose(fp);
+      }
+    } else {
+      g_system_volume_multiplier = 1.0f;
+    }
+    usleep(500000); // 500ms
+  }
+  return NULL;
+}
+
 int main(int argc, char *argv[]) {
-  if (argc < 2 || argc > 11) {
+  if (argc < 2 || argc > 12) {
     safe_fprintf(stderr,
             "Usage: %s <config.json> [volume] [verbose] [mute] [mouse_config] "
             "[mouse_volume] [keyboard_mute] [mouse_mute] [keyboard_enabled] "
-            "[mouse_enabled]\n",
+            "[mouse_enabled] [system_volume_following]\n",
             argv[0]);
     safe_fprintf(stderr, "  volume: 0-100 (default: 50)\n");
     safe_fprintf(stderr, "  verbose: 1 to enable verbose output (default: 0)\n");
@@ -135,6 +174,11 @@ int main(int argc, char *argv[]) {
     if (g_verbose)
       printf("Mouse enabled: %s\n", g_mouse_enabled ? "yes" : "no");
   }
+  if (argc >= 12) {
+    g_system_volume_following = atoi(argv[11]);
+    if (g_verbose)
+      printf("System volume following: %s\n", g_system_volume_following ? "yes" : "no");
+  }
   if (load_sound_config(argv[1]) != 0) {
     safe_fprintf(stderr, "Failed to load keyboard sound configuration\n");
     return 1;
@@ -143,17 +187,22 @@ int main(int argc, char *argv[]) {
     safe_fprintf(stderr, "Failed to initialize audio\n");
     return 1;
   }
+  
+  // Read states initially before starting threads and loops
+  g_mute = read_mute_state();
+  g_keyboard_mute = read_keyboard_mute_state();
+  g_mouse_mute = read_mouse_mute_state();
+  g_keyboard_enabled = read_keyboard_enabled_state();
+  g_mouse_enabled = read_mouse_enabled_state();
+  g_system_volume_following = read_system_volume_following_state();
+
+  pthread_t poller_thread;
+  pthread_create(&poller_thread, NULL, system_volume_poller_thread, NULL);
+  pthread_detach(poller_thread);
+
   fd_set readfds;
   struct timeval timeout;
-  char line[1024];
   while (1) {
-    g_mute = read_mute_state();
-    g_keyboard_mute = read_keyboard_mute_state();
-    g_mouse_mute = read_mouse_mute_state();
-
-    g_keyboard_enabled = read_keyboard_enabled_state();
-    g_mouse_enabled = read_mouse_enabled_state();
-
     FD_ZERO(&readfds);
     FD_SET(STDIN_FILENO, &readfds);
     timeout.tv_sec = 1;
@@ -172,19 +221,16 @@ int main(int argc, char *argv[]) {
       continue;
     }
     if (FD_ISSET(STDIN_FILENO, &readfds)) {
-      if (fgets(line, sizeof(line), stdin) == NULL) {
+      VbxEvent ev;
+      if (fread(&ev, sizeof(VbxEvent), 1, stdin) != 1) {
         if (feof(stdin)) {
-          if (g_verbose)
-            printf("EOF reached on stdin\n");
+          LOG_DEBUG("EOF reached on stdin");
         } else {
-          perror("fgets");
+          perror("fread");
         }
         break;
       }
-      int key_code, is_pressed;
-      if (parse_keyboard_event(line, &key_code, &is_pressed) == 0) {
-        play_sound_segment(key_code, is_pressed);
-      }
+      play_sound_segment(ev.key_code, ev.is_pressed);
     }
   }
   return 0;
